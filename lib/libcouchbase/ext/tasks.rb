@@ -14,7 +14,9 @@ else # UNIX
     end
 
     file 'ext/libcouchbase/build/makefile' => 'ext/libcouchbase/build' do
-        system "./ext/libcouchbase/cmake/configure"
+        Dir.chdir("ext/libcouchbase") do |path|
+            system "./cmake/configure"
+        end
     end
 
     file "ext/libcouchbase/build/lib/libcouchbase.#{FFI::Platform::LIBSUFFIX}" => 'ext/libcouchbase/build/makefile' do
