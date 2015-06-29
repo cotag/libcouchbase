@@ -1,0 +1,15 @@
+
+require 'rubygems'
+require 'ffi'
+require 'rake/clean'
+require '../lib/libcouchbase/ext/tasks'
+
+Dir.chdir File.expand_path("../", __FILE__)
+Dir.chdir '..'
+
+task :default => :libcouchbase
+
+desc "Compile libcouchbase from submodule"
+task :libcouchbase => ["ext/libcouchbase/build/lib/libcouchbase.#{FFI::Platform::LIBSUFFIX}"]
+
+CLOBBER.include("ext/libcouchbase/build/lib/libcouchbase.#{FFI::Platform::LIBSUFFIX}")

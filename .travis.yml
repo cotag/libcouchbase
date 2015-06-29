@@ -1,0 +1,15 @@
+language: ruby
+rvm:
+  - "2.1"
+  - "2.2"
+  - ruby-head
+  - rbx-2
+  - jruby-head
+branches:
+  only:
+    - master
+before_install:
+  - git submodule update --init --recursive
+  - gem install ffi
+before_script:
+  - rake compile
