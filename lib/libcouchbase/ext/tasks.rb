@@ -2,7 +2,7 @@ require 'fileutils'
 
 # Ensure the submodule is cloned
 file 'ext/libcouchbase/include' do
-    system "git", "submodule", "update", "--init"
+    system 'git', 'submodule', 'update', '--init'
 end
 
 
@@ -51,16 +51,17 @@ else
     file 'ext/libcouchbase/build/makefile' => 'ext/libcouchbase/build' do
         Dir.chdir("ext/libcouchbase") do |path|
             if libuv
-                system "./cmake/configure", "-with-libuv", ::File.expand_path('../../', ::Libuv::Ext.path_to_internal_libuv)
+                libuv_path = ::File.expand_path('../../', ::Libuv::Ext.path_to_internal_libuv)
+                system './cmake/configure', '-with-libuv', libuv_path
             else
-                system "./cmake/configure"
+                system './cmake/configure'
             end
         end
     end
 
     file "ext/libcouchbase/build/lib/libcouchbase.#{FFI::Platform::LIBSUFFIX}" => 'ext/libcouchbase/build/makefile' do
-        Dir.chdir("ext/libcouchbase/build") do |path|
-            system "make"
+        Dir.chdir('ext/libcouchbase/build') do |path|
+            system 'make'
         end
     end
 end

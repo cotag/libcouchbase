@@ -2,5 +2,5 @@ require 'forwardable'
 require 'ffi'
 
 module Libcouchbase
-    #require 'libcouchbase/ext/ext'     # The libuv ffi ext
+    require 'libcouchbase/ext/libcouchbase'
 end

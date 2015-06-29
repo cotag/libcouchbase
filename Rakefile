@@ -16,7 +16,7 @@ task :default => :spec
 RSpec::Core::RakeTask.new(:spec)
 
 
-desc "Run all tests"
+desc 'Run all tests'
 task :test => [:spec]
 
 
@@ -25,7 +25,25 @@ YARD::Rake::YardocTask.new do |t|
 end
 
 
-desc "Compile libcouchbase from submodule"
+desc 'Compile libcouchbase from submodule'
 task :compile => ["ext/libcouchbase/build/lib/libcouchbase.#{FFI::Platform::LIBSUFFIX}"]
 
 CLOBBER.include("ext/libcouchbase/build/lib/libcouchbase.#{FFI::Platform::LIBSUFFIX}")
+
+
+
+# NOTE:: Generated on OSX
+desc 'Generate the FFI bindings'
+task :generate_bindings do
+    require "ffi_gen"
+
+    FFIGen.generate(
+        module_name: "Libcouchbase::Ext",
+        ffi_lib:     "libcouchbase",
+        headers:     ["./ext/libcouchbase/include/libcouchbase/couchbase.h"],
+        # Searching for stdarg.h
+        cflags:      ["-I/System/Library/Frameworks/Kernel.framework/Versions/A/Headers"],
+        prefixes:    ["LCB_", "lcb_"],
+        output:      "libcouchbase.rb"
+    )
+end
