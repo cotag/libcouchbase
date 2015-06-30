@@ -6,9 +6,15 @@ require 'libuv'
 module Libcouchbase::Ext
   extend FFI::Library
 
-
-  ffi_lib ::File.dirname(__FILE__) + "/../../../ext/libcouchbase/build/lib/libcouchbase_libuv.#{FFI::Platform::LIBSUFFIX}"
+  # For this to work we need to set the env var for libuv before application load.
+  #   libuv_path = libuv_path = ::File.expand_path('../', ::Libuv::Ext.path_to_internal_libuv)
+  # Linux:
+  #   export LD_LIBRARY_PATH=#{libuv_path};$LD_LIBRARY_PATH
+  # OSX:
+  #   export DYLD_LIBRARY_PATH=#{libuv_path};$DYLD_LIBRARY_PATH"
+  # Win?
   
+  ffi_lib ::File.dirname(__FILE__) + "/../../../ext/libcouchbase/build/lib/libcouchbase_libuv.#{FFI::Platform::LIBSUFFIX}"
 
   def self.attach_function(name, *_)
     begin; super; rescue FFI::NotFoundError => e
