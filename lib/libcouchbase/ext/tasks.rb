@@ -5,17 +5,6 @@ file 'ext/libcouchbase/include' do
     system 'git', 'submodule', 'update', '--init'
 end
 
-
-# Check for libuv
-libuv = begin
-    require 'libuv'
-    ::Libuv::Ext.path_to_internal_libuv
-    true
-rescue LoadError, StandardError
-    false
-end
-
-
 if FFI::Platform.windows?
     # -----------
     # Win32 BUILD
@@ -29,17 +18,17 @@ if FFI::Platform.windows?
 
     file "ext/libcouchbase/build/lib/libcouchbase.#{FFI::Platform::LIBSUFFIX}" => 'ext/libcouchbase/lcb-build' do
         Dir.chdir('ext/libcouchbase/lcb-build') do |path|
-            if libuv
-                system 'cmake', '-with-libuv', ::File.expand_path('../../', ::Libuv::Ext.path_to_internal_libuv), '-G', "Visual Studio 10#{arch}", '..\libcouchbase'
-            else
-                system 'cmake', '-G', "Visual Studio 10#{arch}", '..\libcouchbase'
-            end
+            # Lets not worry about libuv for now
+            #if libuv
+            #    system 'cmake', '-with-libuv', ::File.expand_path('../../', ::Libuv::Ext.path_to_internal_libuv), '-G', "Visual Studio 10#{arch}", '..\libcouchbase'
+            #end
 
+            system 'cmake', '-G', "Visual Studio 10#{arch}", '..\libcouchbase'
             system 'cmake', '--build', '.'
         end
     end
 
-else 
+else
     # -----------
     # UNIX  BUILD
     # -----------
@@ -50,12 +39,13 @@ else
 
     file 'ext/libcouchbase/build/makefile' => 'ext/libcouchbase/build' do
         Dir.chdir("ext/libcouchbase") do |path|
-            if libuv
-                libuv_path = ::File.expand_path('../../', ::Libuv::Ext.path_to_internal_libuv)
-                system './cmake/configure', '-with-libuv', libuv_path
-            else
-                system './cmake/configure'
-            end
+            system './cmake/configure'
+
+            # Lets not worry about libuv for now
+            #if libuv
+            #    libuv_path = ::File.expand_path('../../', ::Libuv::Ext.path_to_internal_libuv)
+            #    system './cmake/configure', '-with-libuv', libuv_path
+            #end
         end
     end
 
