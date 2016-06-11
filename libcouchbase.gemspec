@@ -8,7 +8,7 @@ Gem::Specification.new do |gem|
     gem.email         = ["steve@cotag.me"]
     gem.homepage      = "https://github.com/cotag/libcouchbase"
     gem.summary       = "libcouchbase bindings for Ruby"
-    gem.description   = "An opinionated wrapper around libcouchbase for Ruby"
+    gem.description   = "A wrapper around libcouchbase for Ruby"
 
     gem.extensions << "ext/Rakefile"
 
@@ -16,10 +16,11 @@ Gem::Specification.new do |gem|
     gem.require_paths = ["lib"]
 
     gem.add_runtime_dependency     'ffi', '>= 1.9'
-    
+
     gem.add_development_dependency 'rspec', '>= 2.14'
     gem.add_development_dependency 'rake', '>= 10.1'
     gem.add_development_dependency 'yard'
+    gem.add_development_dependency 'ffi_gen'
 
     gem.files         = `git ls-files`.split("\n")
     gem.test_files    = `git ls-files -- {test,spec,features}/*`.split("\n")
@@ -38,15 +39,15 @@ Gem::Specification.new do |gem|
         Dir.chdir(submodule_path) do
             # Make the submodule path relative
             submodule_path = submodule_path.gsub(/#{relative_path}/i, '')
-       
+
             # issue git ls-files in submodule's directory
             submodule_files = `git ls-files`.split($\)
-       
+
             # prepend the submodule path to create relative file paths
             submodule_files_paths = submodule_files.map do |filename|
                 File.join(submodule_path, filename)
             end
-       
+
             # add relative paths to gem.files
             gem.files += submodule_files_paths
         end
