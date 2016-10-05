@@ -15,12 +15,13 @@ Gem::Specification.new do |gem|
     gem.required_ruby_version = '>= 2.1.0'
     gem.require_paths = ["lib"]
 
-    gem.add_runtime_dependency     'ffi', '>= 1.9'
+    gem.add_runtime_dependency     'ffi', '~> 1.9'
+    gem.add_runtime_dependency     'concurrent-ruby', '~> 1.0'
 
-    gem.add_development_dependency 'rspec', '>= 2.14'
-    gem.add_development_dependency 'rake', '>= 10.1'
-    gem.add_development_dependency 'yard'
-    gem.add_development_dependency 'ffi_gen'
+    gem.add_development_dependency 'rake',  '~> 11.2'
+    gem.add_development_dependency 'rspec', '~> 3.5'
+    gem.add_development_dependency 'yard',  '~> 0.9'
+    gem.add_development_dependency 'ffi-gen'
 
     gem.files         = `git ls-files`.split("\n")
     gem.test_files    = `git ls-files -- {test,spec,features}/*`.split("\n")

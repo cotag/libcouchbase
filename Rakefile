@@ -27,20 +27,36 @@ end
 
 desc 'Compile libcouchbase from submodule'
 task :compile => ["ext/libcouchbase/build/lib/libcouchbase.#{FFI::Platform::LIBSUFFIX}"]
-
 CLOBBER.include("ext/libcouchbase/build/lib/libcouchbase.#{FFI::Platform::LIBSUFFIX}")
-
 
 
 # NOTE:: Generated on OSX
 desc 'Generate the FFI bindings'
 task :generate_bindings do
-    require "ffi_gen"
+    require "ffi/gen"
 
-    FFIGen.generate(
+    # NOTE:: you must export the include dir:
+    # export CPATH=./ext/libcouchbase/include/
+    #
+    # Then we need to:
+    # * adjust the ffi_lib path:
+    #   ffi_lib ::File.expand_path("../../../../ext/libcouchbase/build/lib/libcouchbase.#{FFI::Platform::LIBSUFFIX}", __FILE__)
+    # * Rename some structs strings to pointers
+    #   create_st3.rb -> connstr, username, passwd
+
+    FFI::Gen.generate(
         module_name: "Libcouchbase::Ext",
         ffi_lib:     "libcouchbase",
-        headers:     ["./ext/libcouchbase/include/libcouchbase/couchbase.h"],
+        require_path: "libcouchbase/ext/libcouchbase",
+        headers:     [
+            "./ext/libcouchbase/include/libcouchbase/couchbase.h",
+            "./ext/libcouchbase/include/libcouchbase/error.h",
+            "./ext/libcouchbase/include/libcouchbase/views.h",
+            "./ext/libcouchbase/include/libcouchbase/subdoc.h",
+            "./ext/libcouchbase/include/libcouchbase/n1ql.h",
+            "./ext/libcouchbase/include/libcouchbase/cbft.h",
+            "./ext/libcouchbase/include/libcouchbase/kvbuf.h"
+        ],
         # Searching for stdarg.h
         cflags:      ["-I/System/Library/Frameworks/Kernel.framework/Versions/A/Headers"],
         prefixes:    ["LCB_", "lcb_"],
