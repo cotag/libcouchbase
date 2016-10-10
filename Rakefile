@@ -38,9 +38,9 @@ task :generate_bindings do
     # NOTE:: you must export the include dir:
     # export CPATH=./ext/libcouchbase/include/
     #
-    # Then we need to:
+    # Once generated we need to:
     # * adjust the ffi_lib path:
-    #   ffi_lib ::File.expand_path("../../../../ext/libcouchbase/build/lib/libcouchbase.#{FFI::Platform::LIBSUFFIX}", __FILE__)
+    #   ffi_lib ::File.expand_path("../../../../ext/libcouchbase/build/lib/libcouchbase_libuv.#{FFI::Platform::LIBSUFFIX}", __FILE__)
     # * Rename some structs strings to pointers
     #   create_st3.rb -> connstr, username, passwd
 

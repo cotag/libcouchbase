@@ -11,15 +11,20 @@ describe Libcouchbase::Connection do
 	it "should connect and disconnect from the default bucket" do
 		expect(@log).to eq([])
 
-        begin
-            connection = Libcouchbase::Connection.new do |success|
-                @log << success
+        reactor.run { |reactor|
+            begin
+                connection = Libcouchbase::Connection.new do |success, error|
+                    @log << error
+                    connection.destroy
+                end
+                connection.connect
+            rescue => e
+                @log << e.message
+                @log << e.backtrace
+                connection.destroy
             end
-        rescue => e
-            @log << e.message
-            @log << e.backtrace
-        end
+        }
 
-        expect(@log).to eq([true])
+        expect(@log).to eq([:success])
 	end
 end

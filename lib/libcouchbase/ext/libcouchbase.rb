@@ -3,7 +3,7 @@ require 'libcouchbase/ext/libcouchbase/enums'
 
 module Libcouchbase::Ext
   extend FFI::Library
-  ffi_lib ::File.expand_path("../../../../ext/libcouchbase/build/lib/libcouchbase.#{FFI::Platform::LIBSUFFIX}", __FILE__)
+  ffi_lib ::File.expand_path("../../../../ext/libcouchbase/build/lib/libcouchbase_libuv.#{FFI::Platform::LIBSUFFIX}", __FILE__)
 
   autoload :T, 'libcouchbase/ext/libcouchbase/t'
   autoload :HttpRequestT, 'libcouchbase/ext/libcouchbase/http_request_t'
