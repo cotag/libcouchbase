@@ -84,12 +84,6 @@ module Libcouchbase
             Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_remove],  callback(:callback_remove))
             Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_stats],   callback(:callback_stats))
 
-=begin
-            TODO:: configure timeouts
-
-            lcb_cntl(bucket->handle, (bucket->timeout > 0) ? LCB_CNTL_SET : LCB_CNTL_GET,
-             LCB_CNTL_OP_TIMEOUT, &bucket->timeout);
-=end
             # Connect to the database
             err = Ext.connect(@handle)
             if err != :success
@@ -97,6 +91,16 @@ module Libcouchbase
                 raise "failed to connect: #{err} (#{Ext::ErrorT[err]})"
             end
 
+            self
+        end
+
+        # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-cntl.html#gab3df573dbbea79cfa8ce77f6f61563dc
+        def configure(setting, value)
+            raise 'not connected' unless @handle
+            err = Ext.cntl_string(@handle, setting.to_s, value.to_s)
+            if err != :success
+                raise "failed to configure #{setting}=#{value}: #{err} (#{Ext::ErrorT[err]})"
+            end
             self
         end
 
