@@ -3,6 +3,7 @@
 
 require 'libcouchbase/callbacks'
 require 'libcouchbase/ext/libcouchbase_libuv'
+require 'json'
 
 
 module Libcouchbase
@@ -62,6 +63,7 @@ module Libcouchbase
             @bootstrap_defer = defer || @reactor.defer
             promise = @bootstrap_defer.promise
 
+            # support a callback as well as a promise
             if block_given?
                 promise.then do |result|
                     yield true, *result
@@ -71,7 +73,6 @@ module Libcouchbase
                 end
             end
 
-            @request = 0
             @requests = {}
 
             # Create a library handle
@@ -123,17 +124,19 @@ module Libcouchbase
         end
 
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-store.html
-        def store(key, value, defer: nil, operation: :add, **opts)
+        def store(key, value, defer: nil, operation: :add, expire_in: nil, expire_at: nil, **opts)
             raise 'not connected' unless @handle
             defer ||= @reactor.defer
 
             cmd = Ext::CMDSTORE.new
-            cmd_set_key(cmd, key)
-            cmd_set_value(cmd, value)
-            cmd[:operation] = operation
+            key = cmd_set_key(cmd, key)
 
-            # TODO:: supply options expire_in and expire_at
-            # We'll convert them to the appropriate couchbase value here
+            # This will raise an error if we're not storing valid json
+            str_value = JSON.generate([value])[1..-2]
+            cmd_set_value(cmd, str_value)
+
+            cmd[:operation] = operation
+            cmd[:exptime] = expire_in ? expires_in(expire_in) : expire_at.to_i
 
             pointer = cmd.to_ptr
             @requests[pointer.address] = Request.new(cmd, defer, key, value)
@@ -148,9 +151,10 @@ module Libcouchbase
             defer ||= @reactor.defer
 
             cmd = Ext::CMDGET.new
-            cmd_set_key(cmd, key)
+            key = cmd_set_key(cmd, key)
 
             # TODO:: provide locking options
+            # exptime == the lock expire time
 
             pointer = cmd.to_ptr
             @requests[pointer.address] = Request.new(cmd, defer, key)
@@ -165,7 +169,7 @@ module Libcouchbase
             defer ||= @reactor.defer
 
             cmd = Ext::CMDBASE.new
-            cmd_set_key(cmd, key)
+            key = cmd_set_key(cmd, key)
 
             pointer = cmd.to_ptr
             @requests[pointer.address] = Request.new(cmd, defer, key)
@@ -175,16 +179,14 @@ module Libcouchbase
         end
 
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-counter.html
-        def counter(key, delta: 1, initial: nil, **opts)
+        def counter(key, delta: 1, initial: nil, expire_in: nil, expire_at: nil, **opts)
             raise 'not connected' unless @handle
             defer ||= @reactor.defer
 
             cmd = Ext::CMDCOUNTER.new
-            cmd_set_key(cmd, key)
+            key = cmd_set_key(cmd, key)
 
-            # TODO:: supply options expire_in and expire_at
-            # We'll convert them to the appropriate couchbase value here
-            # also cas etc
+            cmd[:exptime] = expire_in ? expires_in(expire_in) : expire_at.to_i
             cmd[:delta] = delta
             if initial
                 cmd[:initial] = initial
@@ -205,9 +207,9 @@ module Libcouchbase
             defer ||= @reactor.defer
 
             cmd = Ext::CMDBASE.new
-            cmd_set_key(cmd, key)
+            key = cmd_set_key(cmd, key)
 
-
+            cmd[:exptime] = expire_in ? expires_in(expire_in) : expire_at.to_i
 
             pointer = cmd.to_ptr
             @requests[pointer.address] = Request.new(cmd, defer, key)
@@ -220,13 +222,14 @@ module Libcouchbase
         private
 
 
-        def cmd_set_key(cmd, key)
+        def cmd_set_key(cmd, val)
+            key = val.to_s
             cmd[:key][:type] = :kv_copy
             str = FFI::MemoryPointer.from_string(key)
             str.autorelease = true
             cmd[:key][:contig][:bytes] = str
             cmd[:key][:contig][:nbytes] = key.bytesize
-            cmd
+            key
         end
 
         def cmd_set_value(cmd, value)
@@ -237,41 +240,55 @@ module Libcouchbase
             cmd[:value][:u_buf][:contig][:nbytes] = value.bytesize
         end
 
-        def handle_destroyed
-            @handle = nil
-            cleanup_callbacks
-            reqs = @requests
-            @request = nil
-            @requests = nil
+        # 30 days in seconds
+        MAX_EXPIRY = 2_592_000
 
-            @bootstrap_cb = nil
-            @bootstrap_defer = nil
-
-            reqs.each_value do |req|
-                req[0].reject(:disconnected)
+        def expires_in(time)
+            period = time.to_i
+            if period > MAX_EXPIRY
+                Time.now.to_i + period
+            else
+                period
             end
         end
 
+        def handle_destroyed
+            @bootstrap_defer = nil
+            @handle = nil
+
+            cleanup_callbacks
+
+            @requests.each_value do |req|
+                req.defer.reject(:disconnected)
+            end
+            @requests = nil
+        end
 
         def bootstrap_callback(handle, error_code)
             error_name = Ext::ErrorT[error_code]
 
             if error_code == Ext::ErrorT[:success]
                 @bootstrap_defer.resolve([error_name, error_code, self])
+                @bootstrap_defer = nil
             else
-                handle_destroyed
                 @bootstrap_defer.reject([error_name, error_code, self])
+                handle_destroyed
             end
-            @bootstrap_defer = nil
         end
 
         # ==================
         # Response Callbacks
         # ==================
+        DECODE_OPTIONS = {
+            symbolize_names: true
+        }.freeze
+
         def callback_get(handle, type, response)
             resp = Ext::RESPGET.new response
             resp_callback_common(resp, :callback_get) do |req, cb|
-                Response.new(cb, req.key, resp[:cas], resp[:version], resp[:value].read_string(resp[:nvalue]))
+                Response.new(cb, req.key, resp[:cas], resp[:version],
+                    JSON.parse("[#{resp[:value].read_string(resp[:nvalue])}]", DECODE_OPTIONS)[0]
+                )
             end
         end
 
@@ -310,10 +327,15 @@ module Libcouchbase
         def resp_callback_common(resp, callback)
             req = @requests.delete(resp[:cookie].address)
             if req
-                if resp[:rc] == :success
-                    req.defer.resolve(yield(req, callback))
-                else
-                    req.defer.reject(resp[:rc])
+                begin
+                    if resp[:rc] == :success
+                        req.defer.resolve(yield(req, callback))
+                    else
+                        # TODO:: change this to actual error classes
+                        req.defer.reject(resp[:rc])
+                    end
+                rescue => e
+                    req.defer.reject(e)
                 end
             else
                 @reactor.log IOError.new("received #{callback} for unknown request")
