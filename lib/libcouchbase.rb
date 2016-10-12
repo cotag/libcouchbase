@@ -57,9 +57,20 @@ module Libcouchbase
             @handle_ptr = FFI::MemoryPointer.new :pointer, 1
         end
 
-        def connect(callback = nil, &blk)
+        def connect(defer: nil)
             raise 'already connected' if @handle
-            @on_bootstrap = callback || blk
+            @bootstrap_defer = defer || @reactor.defer
+            promise = @bootstrap_defer.promise
+
+            if block_given?
+                promise.then do |result|
+                    yield true, *result
+                end
+                promise.catch do |result|
+                    yield false, *result
+                end
+            end
+
             @request = 0
             @requests = {}
 
@@ -91,10 +102,10 @@ module Libcouchbase
                 raise "failed to connect: #{err} (#{Ext::ErrorT[err]})"
             end
 
-            self
+            promise
         end
 
-        # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-cntl.html#gab3df573dbbea79cfa8ce77f6f61563dc
+        # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-cntl.html
         def configure(setting, value)
             raise 'not connected' unless @handle
             err = Ext.cntl_string(@handle, setting.to_s, value.to_s)
@@ -111,7 +122,7 @@ module Libcouchbase
             self
         end
 
-        # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-store.html#ga9ac7d6294826937f4f052fde15351091
+        # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-store.html
         def store(key, value, defer: nil, operation: :add, **opts)
             raise 'not connected' unless @handle
             defer ||= @reactor.defer
@@ -131,7 +142,7 @@ module Libcouchbase
             defer.promise
         end
 
-        # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-get.html#gab8fabeba69124b43308c49ab2d2488b7
+        # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-get.html
         def get(key, defer: nil, **opts)
             raise 'not connected' unless @handle
             defer ||= @reactor.defer
@@ -148,7 +159,7 @@ module Libcouchbase
             defer.promise
         end
 
-        # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-remove.html#gae66ff9c2d8019127e7b8fa6f27dcc708
+        # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-remove.html
         def remove(key, defer: nil, **opts)
             raise 'not connected' unless @handle
             defer ||= @reactor.defer
@@ -159,6 +170,48 @@ module Libcouchbase
             pointer = cmd.to_ptr
             @requests[pointer.address] = Request.new(cmd, defer, key)
             Ext.remove3(@handle, pointer, cmd)
+
+            defer.promise
+        end
+
+        # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-counter.html
+        def counter(key, delta: 1, initial: nil, **opts)
+            raise 'not connected' unless @handle
+            defer ||= @reactor.defer
+
+            cmd = Ext::CMDCOUNTER.new
+            cmd_set_key(cmd, key)
+
+            # TODO:: supply options expire_in and expire_at
+            # We'll convert them to the appropriate couchbase value here
+            # also cas etc
+            cmd[:delta] = delta
+            if initial
+                cmd[:initial] = initial
+                cmd[:create] = 1
+            end
+
+            pointer = cmd.to_ptr
+            @requests[pointer.address] = Request.new(cmd, defer, key)
+            Ext.counter3(@handle, pointer, cmd)
+
+            defer.promise
+        end
+
+        # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-touch.html
+        def touch(key, expire_in: nil, expire_at: nil, **opts)
+            raise 'not connected' unless @handle
+            raise ArgumentError.new('requires either expire_in or expire_at to be set') unless expire_in || expire_at
+            defer ||= @reactor.defer
+
+            cmd = Ext::CMDBASE.new
+            cmd_set_key(cmd, key)
+
+
+
+            pointer = cmd.to_ptr
+            @requests[pointer.address] = Request.new(cmd, defer, key)
+            Ext.touch3(@handle, pointer, cmd)
 
             defer.promise
         end
@@ -191,6 +244,9 @@ module Libcouchbase
             @request = nil
             @requests = nil
 
+            @bootstrap_cb = nil
+            @bootstrap_defer = nil
+
             reqs.each_value do |req|
                 req[0].reject(:disconnected)
             end
@@ -198,17 +254,15 @@ module Libcouchbase
 
 
         def bootstrap_callback(handle, error_code)
-            success = error_code == Ext::ErrorT[:success]
             error_name = Ext::ErrorT[error_code]
 
-            # Library cleans itself up
-            handle_destroyed unless success
-
-            if @on_bootstrap
-                cb = @on_bootstrap
-                @on_bootstrap = nil
-                cb.call(success, error_name, error_code, self)
+            if error_code == Ext::ErrorT[:success]
+                @bootstrap_defer.resolve([error_name, error_code, self])
+            else
+                handle_destroyed
+                @bootstrap_defer.reject([error_name, error_code, self])
             end
+            @bootstrap_defer = nil
         end
 
         # ==================
@@ -216,32 +270,35 @@ module Libcouchbase
         # ==================
         def callback_get(handle, type, response)
             resp = Ext::RESPGET.new response
-            req = @requests.delete(resp[:cookie].address)
-            resp_callback_common(req, resp, :callback_get) do |cb|
+            resp_callback_common(resp, :callback_get) do |req, cb|
                 Response.new(cb, req.key, resp[:cas], resp[:version], resp[:value].read_string(resp[:nvalue]))
             end
         end
 
         def callback_store(handle, type, response)
             resp = Ext::RESPSTORE.new response
-            req = @requests.delete(resp[:cookie].address)
-            resp_callback_common(req, resp, :callback_store) do |cb|
+            resp_callback_common(resp, :callback_store) do |req, cb|
                 Response.new(cb, req.key, resp[:cas], resp[:version], req.value)
             end
         end
 
         def callback_counter(handle, type, response)
-            puts "received callback of type #{Ext::CALLBACKTYPE[type]}"
+            resp = Ext::RESPCOUNTER.new response
+            resp_callback_common(resp, :callback_counter) do |req, cb|
+                Response.new(cb, req.key, resp[:cas], resp[:version], resp[:value])
+            end
         end
 
         def callback_touch(handle, type, response)
-            puts "received callback of type #{Ext::CALLBACKTYPE[type]}"
+            resp = Ext::RESPBASE.new response
+            resp_callback_common(resp, :callback_touch) do |req, cb|
+                Response.new(cb, req.key, resp[:cas], resp[:version])
+            end
         end
 
         def callback_remove(handle, type, response)
-            resp = Ext::RESPSTORE.new response
-            req = @requests.delete(resp[:cookie].address)
-            resp_callback_common(req, resp, :callback_remove) do |cb|
+            resp = Ext::RESPBASE.new response
+            resp_callback_common(resp, :callback_remove) do |req, cb|
                 Response.new(cb, req.key, resp[:cas], resp[:version])
             end
         end
@@ -250,15 +307,16 @@ module Libcouchbase
             puts "received callback of type #{Ext::CALLBACKTYPE[type]}"
         end
 
-        def resp_callback_common(req, resp, callback)
+        def resp_callback_common(resp, callback)
+            req = @requests.delete(resp[:cookie].address)
             if req
                 if resp[:rc] == :success
-                    req.defer.resolve(yield(callback))
+                    req.defer.resolve(yield(req, callback))
                 else
                     req.defer.reject(resp[:rc])
                 end
             else
-                @reactor.log IOError.new('received response callback for unknown request')
+                @reactor.log IOError.new("received #{callback} for unknown request")
             end
         end
         # ======================
