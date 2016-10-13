@@ -12,22 +12,24 @@ module Libcouchbase
         define_callback function: :bootstrap_callback, params: [:pointer, Ext::ErrorT.native_type]
         
         # This is common for all standard request types
-        define_callback function: :callback_get,       params: [:pointer, :int, :pointer]
-        define_callback function: :callback_store,     params: [:pointer, :int, :pointer]
-        define_callback function: :callback_counter,   params: [:pointer, :int, :pointer]
-        define_callback function: :callback_touch,     params: [:pointer, :int, :pointer]
-        define_callback function: :callback_remove,    params: [:pointer, :int, :pointer]
-        define_callback function: :callback_stats,     params: [:pointer, :int, :pointer]
+        define_callback function: :callback_get
+        define_callback function: :callback_unlock
+        define_callback function: :callback_store
+        define_callback function: :callback_storedur
+        define_callback function: :callback_counter
+        define_callback function: :callback_touch
+        define_callback function: :callback_remove
+        define_callback function: :callback_stats
 
         # These are passed with the request
-        define_callback function: :viewquery_callback, params: [:pointer, :int, :pointer]
-        define_callback function: :n1ql_callback,      params: [:pointer, :int, :pointer]
-        define_callback function: :fts_callback,       params: [:pointer, :int, :pointer]
+        define_callback function: :viewquery_callback
+        define_callback function: :n1ql_callback
+        define_callback function: :fts_callback
         define_callback function: :timings_callback,   params: [:pointer, :pointer, Ext::TimeunitT.native_type, :uint, :uint, :uint, :uint]
 
 
         Request  = Struct.new(:cmd, :defer, :key, :value)
-        Response = Struct.new(:callback, :key, :cas, :version, :value)
+        Response = Struct.new(:callback, :key, :cas, :version, :value, :metadata)
 
 
         def initialize(hosts: 'localhost', bucket: 'default', password: nil, thread: nil, **opts)
@@ -90,7 +92,9 @@ module Libcouchbase
             Ext.set_bootstrap_callback(@handle, callback(:bootstrap_callback))
 
             Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_get],     callback(:callback_get))
+            Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_unlock],  callback(:callback_unlock))
             Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_store],   callback(:callback_store))
+            Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_storedur],callback(:callback_storedur))
             Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_counter], callback(:callback_counter))
             Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_touch],   callback(:callback_touch))
             Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_remove],  callback(:callback_remove))
@@ -123,69 +127,123 @@ module Libcouchbase
             self
         end
 
+        NonJsonValue = [:append, :prepend].freeze
+
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-store.html
-        def store(key, value, defer: nil, operation: :add, expire_in: nil, expire_at: nil, **opts)
+        # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-durability.html
+        def store(key, value, 
+            defer: nil,
+            operation: :set,
+            expire_in: nil,
+            expire_at: nil,
+            persist_to: 0,
+            replicate_to: 0,
+            cas: nil,
+        **opts)
             raise 'not connected' unless @handle
             defer ||= @reactor.defer
 
-            cmd = Ext::CMDSTORE.new
+            # Check if this should be a durable operation
+            durable = (persist_to | replicate_to) != 0
+            if durable
+                cmd = Ext::CMDSTOREDUR.new
+                cmd[:persist_to]   = persist_to
+                cmd[:replicate_to] = replicate_to
+            else
+                cmd = Ext::CMDSTORE.new
+            end
             key = cmd_set_key(cmd, key)
 
-            # This will raise an error if we're not storing valid json
-            str_value = JSON.generate([value])[1..-2]
+            # Check if we are storing a whole value or a partial
+            if NonJsonValue.include? operation
+                str_value = value.to_s
+            else
+                # This will raise an error if we're not storing valid json
+                str_value = JSON.generate([value])[1..-2]
+            end
             cmd_set_value(cmd, str_value)
 
+            cmd[:cas] = cas if cas
             cmd[:operation] = operation
             cmd[:exptime] = expire_in ? expires_in(expire_in) : expire_at.to_i
 
             pointer = cmd.to_ptr
             @requests[pointer.address] = Request.new(cmd, defer, key, value)
-            Ext.store3(@handle, pointer, cmd)
 
+            check_error(durable ? Ext.storedur3(@handle, pointer, cmd) : Ext.store3(@handle, pointer, cmd))
+            
             defer.promise
         end
 
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-get.html
-        def get(key, defer: nil, **opts)
+        def get(key, defer: nil, lock: false, cas: nil, **opts)
             raise 'not connected' unless @handle
             defer ||= @reactor.defer
 
             cmd = Ext::CMDGET.new
             key = cmd_set_key(cmd, key)
+            cmd[:cas] = cas if cas
 
-            # TODO:: provide locking options
             # exptime == the lock expire time
+            if lock
+                time = lock == true ? 30 : lock.to_i
+                time = 30 if time > 30 || time < 0
+
+                # We only want to lock if time is between 1 and 30
+                if time > 0
+                    cmd[:exptime] = time
+                    cmd[:lock] = 1
+                end
+            end
 
             pointer = cmd.to_ptr
             @requests[pointer.address] = Request.new(cmd, defer, key)
-            Ext.get3(@handle, pointer, cmd)
+            check_error Ext.get3(@handle, pointer, cmd)
 
             defer.promise
         end
 
-        # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-remove.html
-        def remove(key, defer: nil, **opts)
+        # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-lock.html
+        def unlock(key, cas: , **opts)
             raise 'not connected' unless @handle
             defer ||= @reactor.defer
 
             cmd = Ext::CMDBASE.new
             key = cmd_set_key(cmd, key)
+            cmd[:cas] = cas
 
             pointer = cmd.to_ptr
             @requests[pointer.address] = Request.new(cmd, defer, key)
-            Ext.remove3(@handle, pointer, cmd)
+            check_error Ext.unlock3(@handle, pointer, cmd)
+
+            defer.promise
+        end
+
+        # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-remove.html
+        def remove(key, defer: nil, cas: nil, **opts)
+            raise 'not connected' unless @handle
+            defer ||= @reactor.defer
+
+            cmd = Ext::CMDBASE.new
+            key = cmd_set_key(cmd, key)
+            cmd[:cas] = cas if cas
+
+            pointer = cmd.to_ptr
+            @requests[pointer.address] = Request.new(cmd, defer, key)
+            check_error Ext.remove3(@handle, pointer, cmd)
 
             defer.promise
         end
 
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-counter.html
-        def counter(key, delta: 1, initial: nil, expire_in: nil, expire_at: nil, **opts)
+        def counter(key, delta: 1, initial: nil, expire_in: nil, expire_at: nil, cas: nil, **opts)
             raise 'not connected' unless @handle
             defer ||= @reactor.defer
 
             cmd = Ext::CMDCOUNTER.new
             key = cmd_set_key(cmd, key)
 
+            cmd[:cas] = cas if cas
             cmd[:exptime] = expire_in ? expires_in(expire_in) : expire_at.to_i
             cmd[:delta] = delta
             if initial
@@ -195,13 +253,13 @@ module Libcouchbase
 
             pointer = cmd.to_ptr
             @requests[pointer.address] = Request.new(cmd, defer, key)
-            Ext.counter3(@handle, pointer, cmd)
+            check_error Ext.counter3(@handle, pointer, cmd)
 
             defer.promise
         end
 
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-touch.html
-        def touch(key, expire_in: nil, expire_at: nil, **opts)
+        def touch(key, expire_in: nil, expire_at: nil, cas: nil, **opts)
             raise 'not connected' unless @handle
             raise ArgumentError.new('requires either expire_in or expire_at to be set') unless expire_in || expire_at
             defer ||= @reactor.defer
@@ -209,11 +267,12 @@ module Libcouchbase
             cmd = Ext::CMDBASE.new
             key = cmd_set_key(cmd, key)
 
+            cmd[:cas] = cas if cas
             cmd[:exptime] = expire_in ? expires_in(expire_in) : expire_at.to_i
 
             pointer = cmd.to_ptr
             @requests[pointer.address] = Request.new(cmd, defer, key)
-            Ext.touch3(@handle, pointer, cmd)
+            check_error Ext.touch3(@handle, pointer, cmd)
 
             defer.promise
         end
@@ -249,6 +308,12 @@ module Libcouchbase
                 Time.now.to_i + period
             else
                 period
+            end
+        end
+
+        def check_error(err)
+            if err != :success
+                raise "error performing request: #{err} (#{Ext::ErrorT[err]})"
             end
         end
 
@@ -299,6 +364,24 @@ module Libcouchbase
             end
         end
 
+        Durability = Struct.new(:nresponses, :exists_master, :persisted_master, :npersisted, :nreplicated, :error)
+
+        def callback_storedur(handle, type, response)
+            resp = Ext::RESPSTOREDUR.new response
+            resp_callback_common(resp, :callback_storedur) do |req, cb|
+                info = resp[:dur_resp]
+                dur = Durability.new(
+                    info[:nresponses],
+                    info[:exists_master],
+                    info[:persisted_master],
+                    info[:npersisted],
+                    info[:nreplicated],
+                    info[:rc]
+                )
+                Response.new(cb, req.key, resp[:cas], resp[:version], req.value, dur)
+            end
+        end
+
         def callback_counter(handle, type, response)
             resp = Ext::RESPCOUNTER.new response
             resp_callback_common(resp, :callback_counter) do |req, cb|
@@ -316,6 +399,13 @@ module Libcouchbase
         def callback_remove(handle, type, response)
             resp = Ext::RESPBASE.new response
             resp_callback_common(resp, :callback_remove) do |req, cb|
+                Response.new(cb, req.key, resp[:cas], resp[:version])
+            end
+        end
+
+        def callback_unlock(handle, type, response)
+            resp = Ext::RESPBASE.new response
+            resp_callback_common(resp, :callback_unlock) do |req, cb|
                 Response.new(cb, req.key, resp[:cas], resp[:version])
             end
         end

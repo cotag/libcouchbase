@@ -26,14 +26,29 @@ describe Libcouchbase::Connection do
             connection = Libcouchbase::Connection.new
             connection.connect.then do
                 connection.store('sometestkey', {"json" => "data"}).then(proc {|resp|
-                    @log << :success
+                    @log << resp.callback
                 }, proc { |error|
                     @log << error
                 }).finally { connection.destroy }
             end
         }
 
-        expect(@log).to eq([:success])
+        expect(@log).to eq([:callback_store])
+    end
+
+    it "should durably store a key on the default bucket" do
+        reactor.run { |reactor|
+            connection = Libcouchbase::Connection.new
+            connection.connect.then do
+                connection.store('sometestkey', {"json" => "data2"}, persist_to: -1, replicate_to: -1).then(proc {|resp|
+                    @log << resp.callback
+                }, proc { |error|
+                    @log << error
+                }).finally { connection.destroy }
+            end
+        }
+
+        expect(@log).to eq([:callback_storedur])
     end
 
     it "should fetch a key from the default bucket" do
@@ -48,7 +63,28 @@ describe Libcouchbase::Connection do
             end
         }
 
-        expect(@log).to eq([{json: "data"}])
+        expect(@log).to eq([{json: "data2"}])
+    end
+
+    it "should unlock a key on the default bucket" do
+
+        reactor.run { |reactor|
+            connection = Libcouchbase::Connection.new
+            connection.connect.then do
+                connection.get('sometestkey', lock: 2).then(proc {|resp|
+                    @log << resp.callback
+                    connection.unlock('sometestkey', cas: resp.cas).then(proc {|resp|
+                        @log << resp.callback
+                    }, proc { |error|
+                        @log << error
+                    })
+                }, proc { |error|
+                    @log << error
+                }).finally { connection.destroy }
+            end
+        }
+
+        expect(@log).to eq([:callback_get, :callback_unlock])
     end
 
     it "should remove a key on the default bucket" do

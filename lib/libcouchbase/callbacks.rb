@@ -15,7 +15,7 @@ module Libcouchbase
                 inst.__send__(func_name, *args)
             end
 
-            def define_callback(function:, params: [:pointer], ret_val: :void, lookup: :default_lookup)
+            def define_callback(function:, params: [:pointer, :int, :pointer], ret_val: :void, lookup: :default_lookup)
                 @callback_funcs[function] = ::FFI::Function.new(ret_val, params) do |*args|
                     dispatch_callback(function, lookup, args)
                 end
