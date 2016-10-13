@@ -19,7 +19,6 @@ module Libcouchbase
         define_callback function: :callback_counter
         define_callback function: :callback_touch
         define_callback function: :callback_remove
-        define_callback function: :callback_stats
 
         # These are passed with the request
         define_callback function: :viewquery_callback
@@ -98,7 +97,6 @@ module Libcouchbase
             Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_counter], callback(:callback_counter))
             Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_touch],   callback(:callback_touch))
             Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_remove],  callback(:callback_remove))
-            Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_stats],   callback(:callback_stats))
 
             # Connect to the database
             err = Ext.connect(@handle)
@@ -167,10 +165,11 @@ module Libcouchbase
             cmd[:operation] = operation
             cmd[:exptime] = expire_in ? expires_in(expire_in) : expire_at.to_i
 
-            pointer = cmd.to_ptr
-            @requests[pointer.address] = Request.new(cmd, defer, key, value)
-
-            check_error(durable ? Ext.storedur3(@handle, pointer, cmd) : Ext.store3(@handle, pointer, cmd))
+            @reactor.schedule {
+                pointer = cmd.to_ptr
+                @requests[pointer.address] = Request.new(cmd, defer, key, value)
+                check_error(defer, durable ? Ext.storedur3(@handle, pointer, cmd) : Ext.store3(@handle, pointer, cmd))
+            }
             
             defer.promise
         end
@@ -196,9 +195,11 @@ module Libcouchbase
                 end
             end
 
-            pointer = cmd.to_ptr
-            @requests[pointer.address] = Request.new(cmd, defer, key)
-            check_error Ext.get3(@handle, pointer, cmd)
+            @reactor.schedule {
+                pointer = cmd.to_ptr
+                @requests[pointer.address] = Request.new(cmd, defer, key)
+                check_error defer, Ext.get3(@handle, pointer, cmd)
+            }
 
             defer.promise
         end
@@ -212,9 +213,11 @@ module Libcouchbase
             key = cmd_set_key(cmd, key)
             cmd[:cas] = cas
 
-            pointer = cmd.to_ptr
-            @requests[pointer.address] = Request.new(cmd, defer, key)
-            check_error Ext.unlock3(@handle, pointer, cmd)
+            @reactor.schedule {
+                pointer = cmd.to_ptr
+                @requests[pointer.address] = Request.new(cmd, defer, key)
+                check_error defer, Ext.unlock3(@handle, pointer, cmd)
+            }
 
             defer.promise
         end
@@ -228,9 +231,11 @@ module Libcouchbase
             key = cmd_set_key(cmd, key)
             cmd[:cas] = cas if cas
 
-            pointer = cmd.to_ptr
-            @requests[pointer.address] = Request.new(cmd, defer, key)
-            check_error Ext.remove3(@handle, pointer, cmd)
+            @reactor.schedule {
+                pointer = cmd.to_ptr
+                @requests[pointer.address] = Request.new(cmd, defer, key)
+                check_error defer, Ext.remove3(@handle, pointer, cmd)
+            }
 
             defer.promise
         end
@@ -251,9 +256,11 @@ module Libcouchbase
                 cmd[:create] = 1
             end
 
-            pointer = cmd.to_ptr
-            @requests[pointer.address] = Request.new(cmd, defer, key)
-            check_error Ext.counter3(@handle, pointer, cmd)
+            @reactor.schedule {
+                pointer = cmd.to_ptr
+                @requests[pointer.address] = Request.new(cmd, defer, key)
+                check_error defer, Ext.counter3(@handle, pointer, cmd)
+            }
 
             defer.promise
         end
@@ -270,9 +277,11 @@ module Libcouchbase
             cmd[:cas] = cas if cas
             cmd[:exptime] = expire_in ? expires_in(expire_in) : expire_at.to_i
 
-            pointer = cmd.to_ptr
-            @requests[pointer.address] = Request.new(cmd, defer, key)
-            check_error Ext.touch3(@handle, pointer, cmd)
+            @reactor.schedule {
+                pointer = cmd.to_ptr
+                @requests[pointer.address] = Request.new(cmd, defer, key)
+                check_error defer, Ext.touch3(@handle, pointer, cmd)
+            }
 
             defer.promise
         end
@@ -311,9 +320,9 @@ module Libcouchbase
             end
         end
 
-        def check_error(err)
+        def check_error(defer, err)
             if err != :success
-                raise "error performing request: #{err} (#{Ext::ErrorT[err]})"
+                defer.reject RuntimeError.new("error performing request: #{err} (#{Ext::ErrorT[err]})")
             end
         end
 
@@ -408,10 +417,6 @@ module Libcouchbase
             resp_callback_common(resp, :callback_unlock) do |req, cb|
                 Response.new(cb, req.key, resp[:cas], resp[:version])
             end
-        end
-
-        def callback_stats(handle, type, response)
-            puts "received callback of type #{Ext::CALLBACKTYPE[type]}"
         end
 
         def resp_callback_common(resp, callback)
