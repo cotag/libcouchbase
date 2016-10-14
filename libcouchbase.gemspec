@@ -23,6 +23,7 @@ Gem::Specification.new do |gem|
     gem.add_development_dependency 'rspec', '~> 3.5'
     gem.add_development_dependency 'yard',  '~> 0.9'
     gem.add_development_dependency 'ffi-gen'
+    gem.add_development_dependency 'uv-rays' # for libuv results spec
 
     gem.files         = `git ls-files`.split("\n")
     gem.test_files    = `git ls-files -- {test,spec,features}/*`.split("\n")

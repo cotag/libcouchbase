@@ -1,8 +1,9 @@
 # frozen_string_literal: true, encoding: ASCII-8BIT
 
 
-require 'libcouchbase/callbacks'
 require 'libcouchbase/ext/libcouchbase_libuv'
+require 'libcouchbase/libuv_results'
+require 'libcouchbase/callbacks'
 require 'json'
 
 
