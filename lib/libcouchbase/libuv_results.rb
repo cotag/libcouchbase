@@ -10,11 +10,13 @@ module Libcouchbase
             @performed = false
 
             @results = []
-            @fibers = Set.new
+            @fiber = nil
 
             # This could be a view or n1ql query
             @query = query
         end
+
+        attr_reader :loaded, :performed
 
         def each(&blk)
             # return a valid enumerator
@@ -23,11 +25,10 @@ module Libcouchbase
             if @loaded
                 @results.each &blk
             else
-                perform unless @performed
+                perform
 
                 index = 0
-                fib = Fiber.current
-                @fibers << fib
+                @fiber = Fiber.current
 
                 begin
                     while true do
@@ -41,7 +42,7 @@ module Libcouchbase
                         end
                     end
                 ensure
-                    @fibers.delete fib
+                    @fiber = nil
                 end
             end
             self
@@ -51,13 +52,11 @@ module Libcouchbase
             if @results.length > 0
                 @results[0]
             else
-                perform unless @performed
+                perform
 
-                fib = Fiber.current
-                @fibers << fib
-
+                @fiber = Fiber.current
                 Fiber.yield
-                @fibers.delete fib
+                @fiber = nil
 
                 result = @results[0]
                 cancel
@@ -69,11 +68,10 @@ module Libcouchbase
             if @results.length >= num
                 @results[0...num]
             else
-                perform unless @performed
+                perform
 
                 index = 0
-                fib = Fiber.current
-                @fibers << fib
+                @fiber = Fiber.current
 
                 result = []
                 while index < num do
@@ -86,7 +84,7 @@ module Libcouchbase
                         Fiber.yield
                     end
                 end
-                @fibers.delete fib
+                @fiber = nil
 
                 cancel
                 result
@@ -99,11 +97,10 @@ module Libcouchbase
             if @loaded
                 @results.take_while(&blk)
             else
-                perform unless @performed
+                perform
 
                 index = 0
-                fib = Fiber.current
-                @fibers << fib
+                @fiber = Fiber.current
                 result = []
 
                 begin
@@ -119,7 +116,7 @@ module Libcouchbase
                         end
                     end
                 ensure
-                    @fibers.delete fib
+                    @fiber = nil
                     cancel
                 end
                 result
@@ -132,24 +129,24 @@ module Libcouchbase
 
         def load_all
             return @results if @loaded
-            perform unless @performed
-            
-            fib = Fiber.current
-            @fibers << fib
+            perform
+
+            @fiber = Fiber.current
             while !@loaded do; Fiber.yield; end
-            @fibers.delete fib
+            @fiber = nil
             @results
         end
 
         def cancel
-            return if !@fibers.empty? || @loaded
+            return if @loaded
             @query.cancel
             @performed = false
         end
 
         def perform
+            return if @performed 
             @performed = true
-
+            @results.clear
             @query.perform { |final, item|
                 if final
                     @loaded = true
@@ -157,7 +154,7 @@ module Libcouchbase
                     @results << item
                 end
 
-                @fibers.each { |f| f.resume }
+                @fiber.resume if @fiber
             }
         end
     end

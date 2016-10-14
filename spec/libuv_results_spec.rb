@@ -16,7 +16,8 @@ class MockQuery
     def perform(&blk)
         @curr = 0
         @callback = blk
-        @cancel = false
+        
+        cancel
 
         preloaded.times { |i| blk.call(false, i) }
         next_item(preloaded)
@@ -24,18 +25,23 @@ class MockQuery
 
     def next_item(i = 0)
         if i == @count
-            @callback.call(true, {count: @count})
+            @sched = reactor.scheduler.in(50) do
+                @callback.call(true, {count: @count})
+            end
         else
-            reactor.scheduler.in(rand(50..100)) do
+            @sched = reactor.scheduler.in(100) do
                 @log << :new_row
+                next_item(i + 1)
                 @callback.call(false, i)
-                next_item(i + 1) unless @cancel
             end
         end
     end
 
     def cancel
-        @cancel = true
+        if @sched
+            @sched.cancel
+            @sched = nil
+        end
     end
 end
 
@@ -69,8 +75,20 @@ describe Libcouchbase::LibuvResults do
         reactor.run { |reactor|
             @log << @view.take(2)
             @log << @view.first
+            @log << @view.to_a
         }
 
-        expect(@log).to eq([:new_row, :new_row, [0, 1], 0])
+        expect(@view.loaded).to be(true)
+        expect(@view.performed).to be(true)
+        expect(@log).to eq([:new_row, :new_row, [0, 1], 0, :new_row, :new_row, :new_row, :new_row, [0, 1, 2, 3]])
+    end
+
+    it "should load only once" do
+        reactor.run { |reactor|
+            @log << @view.to_a
+            @log << @view.to_a
+        }
+
+        expect(@log).to eq([:new_row, :new_row, :new_row, :new_row, [0, 1, 2, 3], [0, 1, 2, 3]])
     end
 end
