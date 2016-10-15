@@ -20,7 +20,7 @@ module Libcouchbase
             @view = view
             @options = opts
 
-            @handle = FFI::MemoryPointer.new :pointer, 1
+            @handle_ptr = FFI::MemoryPointer.new :pointer, 1
 
             @include_docs = true
             @is_spatial = false
@@ -43,7 +43,7 @@ module Libcouchbase
             @reactor.schedule {
                 @callback = blk
                 @cmd = Ext::CMDVIEWQUERY.new
-                Ext.view_query_initcmd(@cmd, @design, @view, opts, @connection.callback(:viewquery_callback))
+                Ext.view_query_initcmd(@cmd, @design, @view, opts, @connection.get_callback(:viewquery_callback))
                 @cmd[:cmdflags] |= F_INCLUDE_DOCS if include_docs
                 @cmd[:cmdflags] |= F_SPATIAL if is_spatial
                 @cmd[:handle] = @handle
@@ -55,14 +55,16 @@ module Libcouchbase
                 if err != :success
                     error(RuntimeError.new("error performing request: #{err} (#{Ext::ErrorT[err]})"))
                 end
+
+                @handle = Ext::VIEWHANDLE.new @handle_ptr.get_pointer(0)
             }
         end
 
         def received(row)
             key = row[:key].read_string(row[:nkey])
             meta = {
-                emitted: row[:value].read_string(row[:nvalue])
-                geometry: row[:geometry].read_string(row[:ngeometry])
+                emitted: row[:value],
+                geometry: row[:geometry]
             }
             cas = row[:cas]
 
@@ -77,7 +79,8 @@ module Libcouchbase
 
             @callback.call(false, resp)
         rescue => e
-            cancel
+            puts "#{e.message}\n#{e.backtrace.join("\n")}"
+            #cancel
             @callback.call(:error, e)
         end
 
@@ -90,7 +93,7 @@ module Libcouchbase
             if @cmd
                 @reactor.schedule {
                     if @cmd
-                        Ext.view_cancel(@connection.handle, @handle.get_pointer(0))
+                        Ext.view_cancel(@connection.handle, @handle)
                         @cmd = nil
                     end
                 }

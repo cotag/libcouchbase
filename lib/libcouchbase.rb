@@ -2,6 +2,7 @@
 
 
 require 'libcouchbase/ext/libcouchbase_libuv'
+require 'libcouchbase/query_view'
 require 'libcouchbase/results_libuv'
 require 'libcouchbase/callbacks'
 require 'json'
@@ -62,6 +63,10 @@ module Libcouchbase
 
 
         attr_reader :requests, :handle
+
+        def get_callback(cb)
+            callback(cb)
+        end
 
 
         def connect(defer: nil)
@@ -456,11 +461,11 @@ module Libcouchbase
         def viewquery_callback(handle, type, row)
             row_data = Ext::RESPVIEWQUERY.new row
             if row_data[:rc] == :success
-                if row_data[:rflags] & Ext::RESPFLAGS[:resp_f_final]
+                if (row_data[:rflags] & Ext::RESPFLAGS[:resp_f_final]) > 0
                     view = @requests.delete(row_data[:cookie].address)
 
                     # We can assume this is JSON
-                    view.received_final(JSON.parse(row[:value].read_string(row[:nvalue]), DECODE_OPTIONS))
+                    view.received_final(JSON.parse(row_data[:value], DECODE_OPTIONS))
                 else
                     view = @requests[row_data[:cookie].address]
                     view.received(row_data)
@@ -470,6 +475,8 @@ module Libcouchbase
                 view = @requests.delete(row_data[:cookie].address)
                 view.error(resp[:rc].to_s)
             end
+        rescue => e
+            puts "#{e.message}\n#{e.backtrace.join("\n")}"
         end
 
         def n1ql_callback(handle, type, row)

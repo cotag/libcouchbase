@@ -156,4 +156,17 @@ describe Libcouchbase::Connection do
 
         expect(@log).to eq([34, 'set', :key_enoent])
     end
+
+    it "should obtain view results" do
+        reactor.run { |reactor|
+            connection = Libcouchbase::Connection.new
+            connection.connect.then do
+                view = connection.query_view('zone', 'all')
+                @log << view.to_a
+                connection.destroy
+            end
+        }
+
+        expect(@log).to eq([:new_row, 0, :new_row, 1, :new_row, 2, :new_row, 3])
+    end
 end
