@@ -2,10 +2,10 @@ require 'set'
 
 
 module Libcouchbase
-    class LibuvResults
+    class ResultsLibuv
         include Enumerable
 
-        def initialize(query)
+        def initialize(query, &row_modifier)
             @loaded = false
             @performed = false
 
@@ -14,9 +14,43 @@ module Libcouchbase
 
             # This could be a view or n1ql query
             @query = query
+            @row_modifier = row_modifier
+            @reactor = reactor
         end
 
-        attr_reader :loaded, :performed
+        attr_reader :loaded, :performed, :metadata
+
+        def stream(&blk)
+            if @loaded
+                @results.each &blk
+            else
+                perform
+                @fiber = Fiber.current
+
+                begin
+                    while true do
+                        if @results.length > 0
+                            yield @results.shift
+                        elsif @loaded
+                            break
+                        else
+                            resume
+                        end
+                    end
+                ensure
+                    @fiber = nil
+                    reset
+                end
+            end
+            self
+        end
+
+        def reset
+            @loaded = false
+            @performed = false
+            @results.clear
+            cancel
+        end
 
         def each(&blk)
             # return a valid enumerator
@@ -38,7 +72,7 @@ module Libcouchbase
                         elsif @loaded
                             break
                         else
-                            Fiber.yield
+                            resume
                         end
                     end
                 ensure
@@ -55,7 +89,7 @@ module Libcouchbase
                 perform
 
                 @fiber = Fiber.current
-                Fiber.yield
+                resume
                 @fiber = nil
 
                 result = @results[0]
@@ -81,7 +115,7 @@ module Libcouchbase
                     elsif @loaded
                         break
                     else
-                        Fiber.yield
+                        resume
                     end
                 end
                 @fiber = nil
@@ -112,7 +146,7 @@ module Libcouchbase
                         elsif @loaded
                             break
                         else
-                            Fiber.yield
+                            resume
                         end
                     end
                 ensure
@@ -127,12 +161,19 @@ module Libcouchbase
         protected
 
 
+        def resume
+            raise @error if @error
+            @reactor = reactor
+            Fiber.yield
+            raise @error if @error
+        end
+
         def load_all
             return @results if @loaded
             perform
 
             @fiber = Fiber.current
-            while !@loaded do; Fiber.yield; end
+            while !@loaded do; resume; end
             @fiber = nil
             @results
         end
@@ -147,14 +188,37 @@ module Libcouchbase
             return if @performed 
             @performed = true
             @results.clear
-            @query.perform { |final, item|
-                if final
-                    @loaded = true
-                else
-                    @results << item
-                end
 
-                @fiber.resume if @fiber
+            # This performs the query against the server
+            @query.perform { |final, item|
+                @reactor.schedule {
+                    # Don't modify unless we are expecting data
+                    if @performed
+                        # Has the operation completed?
+                        if final
+                            if final == :error
+                                @error = item
+                            else
+                                @metadata = item
+                                @loaded = true
+                            end
+
+                        # Do we want to transform the results
+                        elsif @row_modifier
+                            begin
+                                @results << @row_modifier.call(item)
+                            rescue => e
+                                @error = e
+                                reset
+                            end
+                        else
+                            @results << item
+                        end
+
+                        # Resume processing
+                        @fiber.resume if @fiber
+                    end
+                }
             }
         end
     end

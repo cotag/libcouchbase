@@ -2,7 +2,7 @@
 
 
 require 'libcouchbase/ext/libcouchbase_libuv'
-require 'libcouchbase/libuv_results'
+require 'libcouchbase/results_libuv'
 require 'libcouchbase/callbacks'
 require 'json'
 
@@ -29,7 +29,7 @@ module Libcouchbase
 
 
         Request  = Struct.new(:cmd, :defer, :key, :value)
-        Response = Struct.new(:callback, :key, :cas, :version, :value, :metadata)
+        Response = Struct.new(:callback, :key, :cas, :value, :metadata)
 
 
         def initialize(hosts: 'localhost', bucket: 'default', password: nil, thread: nil, **opts)
@@ -59,6 +59,10 @@ module Libcouchbase
             @connection[:v][:v3][:io]      = @io_ptr.get_pointer(0)
             @handle_ptr = FFI::MemoryPointer.new :pointer, 1
         end
+
+
+        attr_reader :requests, :handle
+
 
         def connect(defer: nil)
             raise 'already connected' if @handle
@@ -287,6 +291,13 @@ module Libcouchbase
             defer.promise
         end
 
+        def query_view(design, view, **opts, &row_modifier)
+            view = QueryView.new(self, @reactor, design, view, opts)
+            # TODO:: Results class to be a plugin
+            # add support for naitive ruby and eventmachine
+            ResultsLibuv.new(view, &row_modifier)
+        end
+
 
         private
 
@@ -361,7 +372,7 @@ module Libcouchbase
         def callback_get(handle, type, response)
             resp = Ext::RESPGET.new response
             resp_callback_common(resp, :callback_get) do |req, cb|
-                Response.new(cb, req.key, resp[:cas], resp[:version],
+                Response.new(cb, req.key, resp[:cas],
                     JSON.parse("[#{resp[:value].read_string(resp[:nvalue])}]", DECODE_OPTIONS)[0]
                 )
             end
@@ -370,7 +381,7 @@ module Libcouchbase
         def callback_store(handle, type, response)
             resp = Ext::RESPSTORE.new response
             resp_callback_common(resp, :callback_store) do |req, cb|
-                Response.new(cb, req.key, resp[:cas], resp[:version], req.value)
+                Response.new(cb, req.key, resp[:cas], req.value)
             end
         end
 
@@ -388,35 +399,35 @@ module Libcouchbase
                     info[:nreplicated],
                     info[:rc]
                 )
-                Response.new(cb, req.key, resp[:cas], resp[:version], req.value, dur)
+                Response.new(cb, req.key, resp[:cas], req.value, dur)
             end
         end
 
         def callback_counter(handle, type, response)
             resp = Ext::RESPCOUNTER.new response
             resp_callback_common(resp, :callback_counter) do |req, cb|
-                Response.new(cb, req.key, resp[:cas], resp[:version], resp[:value])
+                Response.new(cb, req.key, resp[:cas], resp[:value])
             end
         end
 
         def callback_touch(handle, type, response)
             resp = Ext::RESPBASE.new response
             resp_callback_common(resp, :callback_touch) do |req, cb|
-                Response.new(cb, req.key, resp[:cas], resp[:version])
+                Response.new(cb, req.key, resp[:cas])
             end
         end
 
         def callback_remove(handle, type, response)
             resp = Ext::RESPBASE.new response
             resp_callback_common(resp, :callback_remove) do |req, cb|
-                Response.new(cb, req.key, resp[:cas], resp[:version])
+                Response.new(cb, req.key, resp[:cas])
             end
         end
 
         def callback_unlock(handle, type, response)
             resp = Ext::RESPBASE.new response
             resp_callback_common(resp, :callback_unlock) do |req, cb|
-                Response.new(cb, req.key, resp[:cas], resp[:version])
+                Response.new(cb, req.key, resp[:cas])
             end
         end
 
@@ -441,9 +452,24 @@ module Libcouchbase
         # End Response Callbacks
         # ======================
 
-
+        # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-view-api.html
         def viewquery_callback(handle, type, row)
+            row_data = Ext::RESPVIEWQUERY.new row
+            if row_data[:rc] == :success
+                if row_data[:rflags] & Ext::RESPFLAGS[:resp_f_final]
+                    view = @requests.delete(row_data[:cookie].address)
 
+                    # We can assume this is JSON
+                    view.received_final(JSON.parse(row[:value].read_string(row[:nvalue]), DECODE_OPTIONS))
+                else
+                    view = @requests[row_data[:cookie].address]
+                    view.received(row_data)
+                end
+            else
+                # TODO:: change this to actual error classes
+                view = @requests.delete(row_data[:cookie].address)
+                view.error(resp[:rc].to_s)
+            end
         end
 
         def n1ql_callback(handle, type, row)
