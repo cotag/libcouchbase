@@ -296,8 +296,12 @@ module Libcouchbase
             defer.promise
         end
 
+        DefaultViewOptions = {
+            on_error: :stop,
+            stale: false
+        }
         def query_view(design, view, **opts, &row_modifier)
-            view = QueryView.new(self, @reactor, design, view, opts)
+            view = QueryView.new(self, @reactor, design, view, DefaultViewOptions.merge(opts))
             # TODO:: Results class to be a plugin
             # add support for naitive ruby and eventmachine
             ResultsLibuv.new(view, &row_modifier)
@@ -475,8 +479,6 @@ module Libcouchbase
                 view = @requests.delete(row_data[:cookie].address)
                 view.error(resp[:rc].to_s)
             end
-        rescue => e
-            puts "#{e.message}\n#{e.backtrace.join("\n")}"
         end
 
         def n1ql_callback(handle, type, row)

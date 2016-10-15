@@ -162,7 +162,8 @@ describe Libcouchbase::Connection do
             connection = Libcouchbase::Connection.new
             connection.connect.then do
                 view = connection.query_view('zone', 'all')
-                @log << view.to_a
+                @log << view.first.metadata
+                @log << view.metadata
                 connection.destroy
             end
         }

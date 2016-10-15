@@ -13,9 +13,10 @@ class MockQuery
 
     attr_accessor :preloaded
 
-    def perform(&blk)
+    def perform(limit: @count, **options, &blk)
         @curr = 0
         @callback = blk
+        @limit = limit
         
         cancel
 
@@ -24,7 +25,7 @@ class MockQuery
     end
 
     def next_item(i = 0)
-        if i == @count
+        if i == @limit
             @sched = reactor.scheduler.in(50) do
                 @callback.call(true, {count: @count})
             end
@@ -59,8 +60,9 @@ describe Libcouchbase::ResultsLibuv do
             @view.each {|i| @log << i }
         }
 
-        expect(@view.loaded).to be(true)
-        expect(@view.performed).to be(true)
+        expect(@view.complete_result_set).to be(true)
+        expect(@view.query_in_progress).to be(false)
+        expect(@view.query_completed).to be(true)
         expect(@log).to eq([:new_row, 0, :new_row, 1, :new_row, 2, :new_row, 3])
     end
 
@@ -70,8 +72,9 @@ describe Libcouchbase::ResultsLibuv do
             @view.each {|i| @log << i }
         }
 
-        expect(@view.loaded).to be(true)
-        expect(@view.performed).to be(true)
+        expect(@view.complete_result_set).to be(true)
+        expect(@view.query_in_progress).to be(false)
+        expect(@view.query_completed).to be(true)
         expect(@log).to eq([0, 1, :new_row, 2, :new_row, 3])
     end
 
@@ -79,13 +82,15 @@ describe Libcouchbase::ResultsLibuv do
         reactor.run { |reactor|
             @log << @view.take(2)
             @log << @view.first
-            expect(@view.loaded).to be(false)
-            expect(@view.performed).to be(false)
+            expect(@view.complete_result_set).to be(false)
+            expect(@view.query_in_progress).to be(false)
+            expect(@view.query_completed).to be(true)
             @log << @view.to_a
         }
 
-        expect(@view.loaded).to be(true)
-        expect(@view.performed).to be(true)
+        expect(@view.complete_result_set).to be(true)
+        expect(@view.query_in_progress).to be(false)
+        expect(@view.query_completed).to be(true)
         expect(@log).to eq([:new_row, :new_row, [0, 1], 0, :new_row, :new_row, :new_row, :new_row, [0, 1, 2, 3]])
     end
 
@@ -95,8 +100,6 @@ describe Libcouchbase::ResultsLibuv do
             @log << @view.to_a
         }
 
-        expect(@view.loaded).to be(true)
-        expect(@view.performed).to be(true)
         expect(@log).to eq([:new_row, :new_row, :new_row, :new_row, [0, 1, 2, 3], [0, 1, 2, 3]])
     end
 
@@ -107,8 +110,6 @@ describe Libcouchbase::ResultsLibuv do
             @log << enum.next
         }
 
-        expect(@view.loaded).to be(true)
-        expect(@view.performed).to be(true)
         expect(@log).to eq([:new_row, :new_row, :new_row, :new_row, 0, 1])
     end
 
@@ -118,8 +119,6 @@ describe Libcouchbase::ResultsLibuv do
             @log << @view.count
         }
 
-        expect(@view.loaded).to be(true)
-        expect(@view.performed).to be(true)
         expect(@log).to eq([:new_row, :new_row, :new_row, :new_row, 4, 4])
     end
 
@@ -128,8 +127,9 @@ describe Libcouchbase::ResultsLibuv do
             @view.stream {|i| @log << i }
         }
 
-        expect(@view.loaded).to be(false)
-        expect(@view.performed).to be(false)
+        expect(@view.complete_result_set).to be(false)
+        expect(@view.query_in_progress).to be(false)
+        expect(@view.query_completed).to be(true)
         expect(@log).to eq([:new_row, 0, :new_row, 1, :new_row, 2, :new_row, 3])
     end
 end

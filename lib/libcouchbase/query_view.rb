@@ -12,7 +12,7 @@ module Libcouchbase
         F_SPATIAL = 1 << 18
 
 
-        def initialize(connection, reactor, design, view, opts)
+        def initialize(connection, reactor, design, view, **opts)
             @connection = connection
             @reactor = reactor
 
@@ -29,16 +29,13 @@ module Libcouchbase
         attr_reader :options, :design, :view, :connection
         attr_accessor :include_docs, :is_spatial
 
-        def perform(&blk)
+        def perform(**options, &blk)
             raise 'not connected' unless @connection.handle
 
-            opts = if @options.is_a?(Hash)
-                pairs = []
-                @options.each { |key, val| pairs << "#{key}=#{val}" }
-                pairs.join('&')
-            else
-                @options.to_s
-            end
+            options = @options.merge(options)
+            pairs = []
+            @options.each { |key, val| pairs << "#{key}=#{val}" }
+            opts = pairs.join('&')
 
             @reactor.schedule {
                 @callback = blk
@@ -54,9 +51,9 @@ module Libcouchbase
                 err = Ext.view_query(@connection.handle, pointer, @cmd)
                 if err != :success
                     error(RuntimeError.new("error performing request: #{err} (#{Ext::ErrorT[err]})"))
+                else
+                    @handle = Ext::VIEWHANDLE.new @handle_ptr.get_pointer(0)
                 end
-
-                @handle = Ext::VIEWHANDLE.new @handle_ptr.get_pointer(0)
             }
         end
 
@@ -79,8 +76,7 @@ module Libcouchbase
 
             @callback.call(false, resp)
         rescue => e
-            puts "#{e.message}\n#{e.backtrace.join("\n")}"
-            #cancel
+            cancel
             @callback.call(:error, e)
         end
 
@@ -90,14 +86,12 @@ module Libcouchbase
         end
 
         def cancel
-            if @cmd
-                @reactor.schedule {
-                    if @cmd
-                        Ext.view_cancel(@connection.handle, @handle)
-                        @cmd = nil
-                    end
-                }
-            end
+            @reactor.schedule {
+                if @cmd
+                    Ext.view_cancel(@connection.handle, @handle)
+                    @cmd = nil
+                end
+            }
         end
 
         def error(obj)

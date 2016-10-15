@@ -6,8 +6,9 @@ module Libcouchbase
         include Enumerable
 
         def initialize(query, &row_modifier)
-            @loaded = false
-            @performed = false
+            @query_in_progress = false
+            @query_completed = false
+            @complete_result_set = false
 
             @results = []
             @fiber = nil
@@ -18,21 +19,25 @@ module Libcouchbase
             @reactor = reactor
         end
 
-        attr_reader :loaded, :performed, :metadata
+        def options(**opts)
+            reset
+            @query.options.merge!(opts)
+        end
+
+        attr_reader :complete_result_set, :query_in_progress
+        attr_reader :query_completed, :metadata
 
         def stream(&blk)
-            if @loaded
+            if @complete_result_set
                 @results.each &blk
             else
-                perform
+                perform is_complete: false
                 @fiber = Fiber.current
 
                 begin
-                    while true do
+                    while not @query_completed do
                         if @results.length > 0
                             yield @results.shift
-                        elsif @loaded
-                            break
                         else
                             resume
                         end
@@ -46,17 +51,17 @@ module Libcouchbase
         end
 
         def reset
-            @loaded = false
-            @performed = false
+            raise 'query in progress' if @query_in_progress
+            @query_in_progress = false
+            @complete_result_set = false
             @results.clear
-            cancel
         end
 
         def each(&blk)
             # return a valid enumerator
             return load_all.each unless block_given?
 
-            if @loaded
+            if @complete_result_set
                 @results.each &blk
             else
                 perform
@@ -65,12 +70,10 @@ module Libcouchbase
                 @fiber = Fiber.current
 
                 begin
-                    while true do
+                    while not @query_completed do
                         if index < @results.length
                             yield @results[index]
                             index += 1
-                        elsif @loaded
-                            break
                         else
                             resume
                         end
@@ -83,76 +86,47 @@ module Libcouchbase
         end
 
         def first
-            if @results.length > 0
+            if @complete_result_set || @results.length > 0
                 @results[0]
             else
-                perform
+                perform is_complete: false, limit: 1
 
                 @fiber = Fiber.current
-                resume
+                while not @query_completed do
+                    resume
+                end
                 @fiber = nil
 
                 result = @results[0]
-                cancel
                 result
             end
         end
 
+        def count
+            first
+            @metadata[:total_rows]
+        end
+
         def take(num)
-            if @results.length >= num
+            if @complete_result_set || @results.length >= num
                 @results[0...num]
             else
-                perform
+                perform is_complete: false, limit: num
 
                 index = 0
                 @fiber = Fiber.current
 
                 result = []
-                while index < num do
-                    if index < @results.length
+                while not @query_completed do
+                    if index < @results.length && index < num
                         result << @results[index]
                         index += 1
-                    elsif @loaded
-                        break
                     else
                         resume
                     end
                 end
                 @fiber = nil
 
-                cancel
-                result
-            end
-        end
-
-        def take_while(&blk)
-            return load_all.take_while unless block_given?
-
-            if @loaded
-                @results.take_while(&blk)
-            else
-                perform
-
-                index = 0
-                @fiber = Fiber.current
-                result = []
-
-                begin
-                    while true do
-                        if index < @results.length
-                            break unless yield(@results[index])
-                            result << @results[index]
-                            index += 1
-                        elsif @loaded
-                            break
-                        else
-                            resume
-                        end
-                    end
-                ensure
-                    @fiber = nil
-                    cancel
-                end
                 result
             end
         end
@@ -169,55 +143,49 @@ module Libcouchbase
         end
 
         def load_all
-            return @results if @loaded
+            return @results if @complete_result_set
             perform
 
             @fiber = Fiber.current
-            while !@loaded do; resume; end
+            while not @query_completed do; resume; end
             @fiber = nil
             @results
         end
 
-        def cancel
-            return if @loaded
-            @query.cancel
-            @performed = false
-        end
-
-        def perform
-            return if @performed 
-            @performed = true
+        def perform(is_complete: true, **opts)
+            return if @query_in_progress
+            @query_in_progress = true
+            @query_completed = false
             @results.clear
 
             # This performs the query against the server
-            @query.perform { |final, item|
+            @query.perform(**opts) { |final, item|
                 @reactor.schedule {
-                    # Don't modify unless we are expecting data
-                    if @performed
-                        # Has the operation completed?
-                        if final
-                            if final == :error
-                                @error = item
-                            else
-                                @metadata = item
-                                @loaded = true
-                            end
-
-                        # Do we want to transform the results
-                        elsif @row_modifier
-                            begin
-                                @results << @row_modifier.call(item)
-                            rescue => e
-                                @error = e
-                                reset
-                            end
+                    # Has the operation completed?
+                    if final
+                        if final == :error
+                            @error = item
                         else
-                            @results << item
+                            @metadata = item
+                            @complete_result_set = is_complete
                         end
+                        @query_completed = true
+                        @query_in_progress = false
 
-                        # Resume processing
-                        @fiber.resume if @fiber
+                    # Do we want to transform the results
+                    elsif @row_modifier
+                        begin
+                            @results << @row_modifier.call(item)
+                        rescue => e
+                            @error = e
+                            reset
+                        end
+                    else
+                        @results << item
                     end
+
+                    # Resume processing
+                    @fiber.resume if @fiber
                 }
             }
         end
