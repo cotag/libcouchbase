@@ -161,13 +161,37 @@ describe Libcouchbase::Connection do
         reactor.run { |reactor|
             connection = Libcouchbase::Connection.new
             connection.connect.then do
-                view = connection.query_view('zone', 'all')
-                @log << view.first.metadata
-                @log << view.metadata
-                connection.destroy
+                begin
+                    view = connection.query_view('zone', 'all')
+                    expect(view.first.class).to be(Libcouchbase::Connection::Response)
+                    @log << view.metadata[:total_rows]
+                    @log << view.count
+                ensure
+                    connection.destroy
+                end
             end
         }
 
-        expect(@log).to eq([:new_row, 0, :new_row, 1, :new_row, 2, :new_row, 3])
+        expect(@log).to eq([2, 2])
+    end
+
+    it "should cancel the request on error" do
+        reactor.run { |reactor|
+            connection = Libcouchbase::Connection.new
+            connection.connect.then do
+                view = connection.query_view('zone', 'all')
+                begin
+                    view.each do |item|
+                        @log << :callback
+                        raise 'runtime error'
+                    end
+                rescue => e
+                    @log << view.metadata[:total_rows]
+                    connection.destroy
+                end
+            end
+        }
+
+        expect(@log).to eq([:callback, 2])
     end
 end

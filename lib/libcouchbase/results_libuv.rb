@@ -43,8 +43,9 @@ module Libcouchbase
                         end
                     end
                 ensure
+                    # cancel is executed on break or error
+                    cancel unless @query_completed
                     @fiber = nil
-                    reset
                 end
             end
             self
@@ -79,6 +80,8 @@ module Libcouchbase
                         end
                     end
                 ensure
+                    # cancel is executed on break or error
+                    cancel unless @query_completed
                     @fiber = nil
                 end
             end
@@ -103,7 +106,7 @@ module Libcouchbase
         end
 
         def count
-            first
+            first unless @metadata
             @metadata[:total_rows]
         end
 
@@ -131,6 +134,11 @@ module Libcouchbase
             end
         end
 
+        def cancel
+            @query.cancel
+            resume
+        end
+
 
         protected
 
@@ -139,7 +147,13 @@ module Libcouchbase
             raise @error if @error
             @reactor = reactor
             Fiber.yield
-            raise @error if @error
+
+            # Clear and raise the error
+            if @error
+                err = @error
+                @error = nil
+                raise err
+            end
         end
 
         def load_all
@@ -174,12 +188,7 @@ module Libcouchbase
 
                     # Do we want to transform the results
                     elsif @row_modifier
-                        begin
-                            @results << @row_modifier.call(item)
-                        rescue => e
-                            @error = e
-                            reset
-                        end
+                        @results << @row_modifier.call(item)
                     else
                         @results << item
                     end

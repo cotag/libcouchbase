@@ -20,8 +20,6 @@ module Libcouchbase
             @view = view
             @options = opts
 
-            @handle_ptr = FFI::MemoryPointer.new :pointer, 1
-
             @include_docs = true
             @is_spatial = false
         end
@@ -31,11 +29,14 @@ module Libcouchbase
 
         def perform(**options, &blk)
             raise 'not connected' unless @connection.handle
+            raise 'query already in progress' if @cmd
 
             options = @options.merge(options)
             pairs = []
             @options.each { |key, val| pairs << "#{key}=#{val}" }
             opts = pairs.join('&')
+
+            @error = nil
 
             @reactor.schedule {
                 @callback = blk
@@ -43,7 +44,6 @@ module Libcouchbase
                 Ext.view_query_initcmd(@cmd, @design, @view, opts, @connection.get_callback(:viewquery_callback))
                 @cmd[:cmdflags] |= F_INCLUDE_DOCS if include_docs
                 @cmd[:cmdflags] |= F_SPATIAL if is_spatial
-                @cmd[:handle] = @handle
 
                 pointer = @cmd.to_ptr
 
@@ -51,13 +51,13 @@ module Libcouchbase
                 err = Ext.view_query(@connection.handle, pointer, @cmd)
                 if err != :success
                     error(RuntimeError.new("error performing request: #{err} (#{Ext::ErrorT[err]})"))
-                else
-                    @handle = Ext::VIEWHANDLE.new @handle_ptr.get_pointer(0)
                 end
             }
         end
 
         def received(row)
+            return if @error
+
             key = row[:key].read_string(row[:nkey])
             meta = {
                 emitted: row[:value],
@@ -76,27 +76,29 @@ module Libcouchbase
 
             @callback.call(false, resp)
         rescue => e
-            cancel
-            @callback.call(:error, e)
+            @error = e
         end
 
         def received_final(metadata)
             @cmd = nil
-            @callback.call(:final, metadata)
-        end
-
-        def cancel
-            @reactor.schedule {
-                if @cmd
-                    Ext.view_cancel(@connection.handle, @handle)
-                    @cmd = nil
+            if @error
+                if @error == :cancelled
+                    @callback.call(:final, metadata)
+                else
+                    @callback.call(:error, obj)
                 end
-            }
+            else
+                @callback.call(:final, metadata)
+            end
         end
 
         def error(obj)
             @cmd = nil
             @callback.call(:error, obj)
+        end
+
+        def cancel
+            @error = :cancelled
         end
     end
 end

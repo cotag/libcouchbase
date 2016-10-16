@@ -27,7 +27,7 @@ class MockQuery
     def next_item(i = 0)
         if i == @limit
             @sched = reactor.scheduler.in(50) do
-                @callback.call(true, {count: @count})
+                @callback.call(true, {total_rows: @count})
             end
         else
             @sched = reactor.scheduler.in(100) do
@@ -119,7 +119,7 @@ describe Libcouchbase::ResultsLibuv do
             @log << @view.count
         }
 
-        expect(@log).to eq([:new_row, :new_row, :new_row, :new_row, 4, 4])
+        expect(@log).to eq([:new_row, 4, 4])
     end
 
     it "should support streaming the response so results are not all stored in memory" do
