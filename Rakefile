@@ -43,6 +43,7 @@ task :generate_bindings do
     #   ffi_lib ::File.expand_path("../../../../ext/libcouchbase/build/lib/libcouchbase_libuv.#{FFI::Platform::LIBSUFFIX}", __FILE__)
     # * Rename some structs strings to pointers
     #   create_st3.rb -> connstr, username, passwd
+    #   cmdhttp.rb -> body, reqhandle, content_type, username, password, host
 
     FFI::Gen.generate(
         module_name: "Libcouchbase::Ext",

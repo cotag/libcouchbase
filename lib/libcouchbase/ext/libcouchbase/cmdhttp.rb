@@ -46,13 +46,13 @@ module Libcouchbase::Ext
            :hashkey, KEYBUF.by_value,
            :type, HttpTypeT,
            :method, HttpMethodT,
-           :body, :string,
+           :body, :pointer,
            :nbody, :ulong,
            :reqhandle, :pointer,
-           :content_type, :string,
-           :username, :string,
-           :password, :string,
-           :host, :string
+           :content_type, :pointer,
+           :username, :pointer,
+           :password, :pointer,
+           :host, :pointer
   end
 
 end

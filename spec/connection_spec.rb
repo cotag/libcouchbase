@@ -194,4 +194,83 @@ describe Libcouchbase::Connection do
 
         expect(@log).to eq([:callback, 2])
     end
+
+    it "should cancel the request on error" do
+        reactor.run { |reactor|
+            connection = Libcouchbase::Connection.new
+            connection.connect.then do
+                view = connection.query_view('zone', 'all')
+                begin
+                    view.each do |item|
+                        @log << :callback
+                        raise 'runtime error'
+                    end
+                rescue => e
+                    @log << view.metadata[:total_rows]
+                    connection.destroy
+                end
+            end
+        }
+
+        expect(@log).to eq([:callback, 2])
+    end
+
+    it "should fail to flush unless the connection specifies it is enabled" do
+        reactor.run { |reactor|
+            connection = Libcouchbase::Connection.new
+            connection.connect.then do
+                begin
+                    connection.flush.then(proc {
+                        @log << :error
+                    }, proc {
+                        @log << :error
+                    }).finally { connection.destroy }
+                rescue => e
+                    @log << :success
+                    connection.destroy
+                end
+            end
+        }
+
+        expect(@log).to eq([:success])
+    end
+
+    it "should flush when enabled explicitly" do
+        reactor.run { |reactor|
+            connection = Libcouchbase::Connection.new(bucket: :test, password: 'password123')
+            connection.connect(flush_enabled: true).then do
+                begin
+                    connection.flush.then(proc { |resp|
+                        @log << resp.callback
+                    }, proc { |error|
+                        @log << error
+                    }).finally { connection.destroy }
+                rescue => e
+                    @log << e
+                    connection.destroy
+                end
+            end
+        }
+
+        expect(@log).to eq([:callback_cbflush])
+    end
+
+    it "should perform a HTTP request" do
+        reactor.run { |reactor|
+            connection = Libcouchbase::Connection.new
+            connection.connect.then do
+                connection.http("/pools/default/buckets/#{connection.bucket}/ddocs", type: :management).then(
+                    proc { |resp|
+                        @log << resp.headers
+                    },
+                    proc { |err|
+                        @log << err
+                        @log << err.backtrace.join("\n")
+                    }
+                ).finally { connection.destroy }
+            end
+        }
+
+        expect(@log).to eq([:callback_cbflush])
+    end
 end

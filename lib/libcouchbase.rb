@@ -21,16 +21,18 @@ module Libcouchbase
         define_callback function: :callback_counter
         define_callback function: :callback_touch
         define_callback function: :callback_remove
+        define_callback function: :callback_cbflush
+        define_callback function: :callback_http
 
         # These are passed with the request
         define_callback function: :viewquery_callback
         define_callback function: :n1ql_callback
         define_callback function: :fts_callback
-        define_callback function: :timings_callback,   params: [:pointer, :pointer, Ext::TimeunitT.native_type, :uint, :uint, :uint, :uint]
 
 
         Request  = Struct.new(:cmd, :defer, :key, :value)
         Response = Struct.new(:callback, :key, :cas, :value, :metadata)
+        HttpResponse = Struct.new(:callback, :status, :headers, :body, :request)
 
 
         def initialize(hosts: 'localhost', bucket: 'default', password: nil, thread: nil, **opts)
@@ -38,6 +40,9 @@ module Libcouchbase
             hosts = hosts.join(',') if hosts.is_a?(Array)
             connstr = "couchbase://#{hosts}/#{bucket}"
             connstr = "#{connstr}?#{opts.map { |k, v| "#{k}=#{v}" }.join('&') }" unless opts.empty?
+
+            # It's good to know
+            @bucket = bucket
 
             # Configure the event loop settings
             @reactor = thread || reactor
@@ -62,16 +67,17 @@ module Libcouchbase
         end
 
 
-        attr_reader :requests, :handle
+        attr_reader :requests, :handle, :bucket
 
         def get_callback(cb)
             callback(cb)
         end
 
 
-        def connect(defer: nil)
+        def connect(defer: nil, flush_enabled: false)
             raise 'already connected' if @handle
             @bootstrap_defer = defer || @reactor.defer
+            @flush_enabled = flush_enabled
             promise = @bootstrap_defer.promise
 
             # support a callback as well as a promise
@@ -107,6 +113,8 @@ module Libcouchbase
             Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_counter], callback(:callback_counter))
             Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_touch],   callback(:callback_touch))
             Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_remove],  callback(:callback_remove))
+            Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_http],    callback(:callback_http))
+            Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_cbflush], callback(:callback_cbflush)) if @flush_enabled
 
             # Connect to the database
             err = Ext.connect(@handle)
@@ -140,13 +148,13 @@ module Libcouchbase
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-store.html
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-durability.html
         def store(key, value, 
-            defer: nil,
-            operation: :set,
-            expire_in: nil,
-            expire_at: nil,
-            persist_to: 0,
-            replicate_to: 0,
-            cas: nil,
+                defer: nil,
+                operation: :set,
+                expire_in: nil,
+                expire_at: nil,
+                persist_to: 0,
+                replicate_to: 0,
+                cas: nil,
         **opts)
             raise 'not connected' unless @handle
             defer ||= @reactor.defer
@@ -296,6 +304,90 @@ module Libcouchbase
             defer.promise
         end
 
+        # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-flush.html
+        def flush(defer: nil, **opts)
+            raise 'not connected' unless @handle
+            raise 'flush not enabled' unless @flush_enabled
+            defer ||= @reactor.defer
+
+            cmd = Ext::CMDBASE.new
+
+            @reactor.schedule {
+                pointer = cmd.to_ptr
+                @requests[pointer.address] = Request.new(cmd, defer)
+                check_error defer, Ext.cbflush3(@handle, pointer, cmd)
+            }
+
+            defer.promise
+        end
+
+
+        CMDHTTP_F_STREAM = 1<<16  # Stream the response (not used, we're only making simple requests)
+        CMDHTTP_F_CASTMO = 1<<17  # If specified, the lcb_CMDHTTP::cas field becomes the timeout
+        CMDHTTP_F_NOUPASS = 1<<18 # If specified, do not inject authentication header into the request.
+        HttpBodyRequired = [:put, :post].freeze
+
+        # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-http.html
+        def http(path,
+                type: :view,
+                method: :get,
+                body: nil,
+                content_type: 'application/json',
+                defer: nil,
+                timeout: nil,
+                username: nil,
+                password: nil,
+                no_auth: false,
+        **opts)
+            raise 'not connected' unless @handle
+            raise 'unsupported request type' unless Ext::HttpTypeT[type]
+            raise 'unsupported HTTP method' unless Ext::HttpMethodT[method]
+            body_content = if HttpBodyRequired.include? method
+                raise 'no HTTP body provided' unless body
+                if body.is_a? String
+                    body
+                else
+                    # This will raise an error if not valid json
+                    JSON.generate([body])[1..-2]
+                end
+            end
+
+            defer ||= @reactor.defer
+
+            cmd = Ext::CMDHTTP.new
+            cmd_set_key(cmd, path)
+            if timeout
+                cmd[:cas] = timeout
+                cmd[:cmdflags] |= CMDHTTP_F_CASTMO
+            end
+            cmd[:cmdflags] |= CMDHTTP_F_NOUPASS if no_auth
+            cmd[:type] = type
+            cmd[:method] = method
+            if body_content
+                cmd[:body] = FFI::MemoryPointer.from_string(body_content)
+                cmd[:nbody] = body_content.bytesize
+            end
+            cmd[:content_type] = FFI::MemoryPointer.from_string(content_type) if content_type
+            cmd[:username] = FFI::MemoryPointer.from_string(username) if username
+            cmd[:password] = FFI::MemoryPointer.from_string(password) if password
+
+
+            @reactor.schedule {
+                pointer = cmd.to_ptr
+                @requests[pointer.address] = Request.new(cmd, defer, path, {
+                    path: path,
+                    method: method,
+                    body: body,
+                    content_type: content_type,
+                    type: type,
+                    no_auth: no_auth
+                })
+                check_error defer, Ext.http3(@handle, pointer, cmd)
+            }
+
+            defer.promise
+        end
+
         DefaultViewOptions = {
             on_error: :stop,
             stale: false
@@ -440,6 +532,30 @@ module Libcouchbase
             end
         end
 
+        def callback_cbflush(handle, type, response)
+            resp = Ext::RESPBASE.new response
+            resp_callback_common(resp, :callback_cbflush) do |req, cb|
+                Response.new(cb)
+            end
+        end
+
+        def callback_http(handle, type, response)
+            resp = Ext::RESPHTTP.new response
+            resp_callback_common(resp, :callback_http) do |req, cb|
+                headers = {}
+                head_ptr = resp[:headers]
+                if not head_ptr.null?
+                    head_ptr.get_array_of_string(0).each_slice(2) do |key, value|
+                        headers[key] = value
+                    end
+                end
+                body = if resp[:nbody] > 0
+                    resp[:body].read_string_length(resp[:nbody])
+                end
+                HttpResponse.new(cb, resp[:htstatus], headers, body, req.value)
+            end
+        end
+
         def resp_callback_common(resp, callback)
             req = @requests.delete(resp[:cookie].address)
             if req
@@ -481,17 +597,12 @@ module Libcouchbase
             end
         end
 
+        # TODO::
         def n1ql_callback(handle, type, row)
-
         end
 
-        # Full text search
+        # TODO:: Full text search
         def fts_callback(handle, type, row)
-
-        end
-
-        def timings_callback(handle, cookie, time, min, max, total, maxtotal)
-
         end
     end
 end
