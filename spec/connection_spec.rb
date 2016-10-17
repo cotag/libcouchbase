@@ -261,16 +261,16 @@ describe Libcouchbase::Connection do
             connection.connect.then do
                 connection.http("/pools/default/buckets/#{connection.bucket}/ddocs", type: :management).then(
                     proc { |resp|
-                        @log << resp.headers
+                        @log << resp.headers.empty?
+                        @log << resp.body.empty?
                     },
                     proc { |err|
                         @log << err
-                        @log << err.backtrace.join("\n")
                     }
                 ).finally { connection.destroy }
             end
         }
 
-        expect(@log).to eq([:callback_cbflush])
+        expect(@log).to eq([false, false])
     end
 end
