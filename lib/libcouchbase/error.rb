@@ -1,8 +1,10 @@
 # frozen_string_literal: true, encoding: ASCII-8BIT
 
 module Libcouchbase
-    module Error
-        class UnknownError < ::StandardError; end
+    class Error < ::StandardError; end
+
+    class Error < ::StandardError
+        class UnknownError < ::Libcouchbase::Error; end
         Lookup = {}
 
         # Borrowed from:
@@ -20,14 +22,38 @@ module Libcouchbase
         end
 
         # Dynamically define the error classes
-        Ext::ErrorT.symbols.map { |val| [val, camelize(val.to_s)] }.each do |enum, name|
-            klass = Class.new(::StandardError)
-            Libcouchbase::Error.send(:const_set, name, klass)
-            Lookup[enum] = klass
+        Ignore = ['empty', 'error', 'environment']
+        Map = {
+            'noent'  => 'not_found',
+            'nomem'  => 'no_memory',
+            'noconf' => 'no_config',
+            '2big'   => 'too_big',
+            '2deep'  => 'too_deep'
+        }
+        Ext::ErrorT.symbols.map { |val|
+            # Remove the 'e' character from the start of errors and
+            # Improve descriptions
+            new_val = val.to_s.split('_')
+                .map { |val| (val[0] == 'e' && !Ignore.include?(val)) ? val[1..-1] : val }
+                .map { |val| Map[val] || val }
+                .join('_')
+
+            [val, camelize(new_val).to_sym]
+        }.each do |enum, name|
+            Lookup[enum] = begin
+                # Ensure the constant doesn't exist
+                ::Libcouchbase::Error.const_get(name)
+            rescue NameError => e 
+                # Build the constants
+                klass = Class.new(::Libcouchbase::Error)
+                ::Libcouchbase::Error.const_set(name, klass)
+                klass
+            end
         end
 
-        # Re-assign the ones that makes sense
-        Lookup[:not_stored] = KeyEnoent
+        # Re-assign the errors that are equivalent
+        Lookup[:not_stored] = KeyNotFound
+        Lookup[:error]      = UnknownError
 
         # Provide a helper
         def self.lookup(key)

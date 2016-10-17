@@ -107,7 +107,7 @@ describe Libcouchbase::Connection do
             connection = Libcouchbase::Connection.new
             connection.connect.then do
                 expect(connection.configure(:operation_timeout, 1500000)).to be(connection)
-                expect { connection.configure(:bob, 1500000) }.to raise_error(RuntimeError)
+                expect { connection.configure(:bob, 1500000) }.to raise_error(Libcouchbase::Error)
                 @log << :success
                 connection.destroy
             end
@@ -145,7 +145,7 @@ describe Libcouchbase::Connection do
                         @log << 'set'
                         sleep 2
                         connection.get('testtouch').catch(proc {|err|
-                            @log << err
+                            @log << err.is_a?(Libcouchbase::Error::KeyNotFound)
                         })
                     })
                 }, proc { |error|
@@ -154,7 +154,7 @@ describe Libcouchbase::Connection do
             end
         }
 
-        expect(@log).to eq([34, 'set', :key_enoent])
+        expect(@log).to eq([34, 'set', true])
     end
 
     it "should obtain view results" do

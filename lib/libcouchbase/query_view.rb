@@ -50,7 +50,7 @@ module Libcouchbase
                 @connection.requests[pointer.address] = self
                 err = Ext.view_query(@connection.handle, pointer, @cmd)
                 if err != :success
-                    error(RuntimeError.new("error performing request: #{err} (#{Ext::ErrorT[err]})"))
+                    error(Error.lookup(err).new('view request not scheduled'))
                 end
             }
         end

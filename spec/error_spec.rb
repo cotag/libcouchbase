@@ -15,4 +15,12 @@ describe Libcouchbase::Error do
         expect(Libcouchbase::Error.lookup(2)).to             be(Libcouchbase::Error::AuthError)
         expect(Libcouchbase::Error.lookup(-2)).to            be(Libcouchbase::Error::UnknownError)
     end
+
+    it "should be able to catch generic errors" do
+        begin
+            raise ::Libcouchbase::Error::NoMemory, 'what what'
+        rescue ::Libcouchbase::Error => e
+            expect(e.message).to eq('what what')
+        end
+    end
 end

@@ -1,10 +1,5 @@
 # frozen_string_literal: true, encoding: ASCII-8BIT
 
-
-require 'libcouchbase/ext/libcouchbase_libuv'
-require 'libcouchbase/query_view'
-require 'libcouchbase/results_libuv'
-require 'libcouchbase/callbacks'
 require 'json'
 
 
@@ -12,7 +7,7 @@ module Libcouchbase
     class Connection
         include Callbacks
         define_callback function: :bootstrap_callback, params: [:pointer, Ext::ErrorT.native_type]
-        
+
         # This is common for all standard request types
         define_callback function: :callback_get
         define_callback function: :callback_unlock
@@ -54,7 +49,7 @@ module Libcouchbase
 
             err = Ext.create_libuv_io_opts(0, @io_ptr, @io_opts)
             if err != :success
-                raise "failed to allocate IO plugin: #{err} (#{Ext::ErrorT[err]})"
+                raise Error.lookup(err), 'failed to allocate IO plugin'
             end
 
             # Configure the connection to the database
@@ -96,7 +91,7 @@ module Libcouchbase
             #  the create call allocates the memory and updates our pointer
             err = Ext.create(@handle_ptr, @connection)
             if err != :success
-                raise "failed to allocate instance: #{err} (#{Ext::ErrorT[err]})"
+                raise Error.lookup(err), 'failed to create instance'
             end
 
             # We extract the pointer and create the handle structure
@@ -120,7 +115,7 @@ module Libcouchbase
             err = Ext.connect(@handle)
             if err != :success
                 destroy
-                raise "failed to connect: #{err} (#{Ext::ErrorT[err]})"
+                raise Error.lookup(err), 'failed to schedule connect'
             end
 
             promise
@@ -129,18 +124,34 @@ module Libcouchbase
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-cntl.html
         def configure(setting, value)
             raise 'not connected' unless @handle
-            err = Ext.cntl_string(@handle, setting.to_s, value.to_s)
-            if err != :success
-                raise "failed to configure #{setting}=#{value}: #{err} (#{Ext::ErrorT[err]})"
-            end
-            self
+
+            # Ensure it is thread safe
+            defer = @reactor.defer
+            @reactor.schedule {
+                err = Ext.cntl_string(@handle, setting.to_s, value.to_s)
+                if err == :success
+                    defer.resolve(self)
+                else
+                    defer.reject(Error.lookup(err).new("failed to configure #{setting}=#{value}"))
+                end
+            }
+
+            co defer.promise
         end
 
         def destroy
-            return self unless @handle
-            Ext.destroy(@handle)
-            handle_destroyed
-            self
+            defer = @reactor.defer
+
+            # Ensure it is thread safe
+            @reactor.schedule {
+                if @handle
+                    Ext.destroy(@handle)
+                    handle_destroyed
+                end
+                defer.resolve(self)
+            }
+
+            co defer.promise
         end
 
         NonJsonValue = [:append, :prepend].freeze
@@ -435,7 +446,7 @@ module Libcouchbase
 
         def check_error(defer, err)
             if err != :success
-                defer.reject RuntimeError.new("error performing request: #{err} (#{Ext::ErrorT[err]})")
+                defer.reject Error.lookup(err).new('request not scheduled')
             end
         end
 
@@ -446,7 +457,7 @@ module Libcouchbase
             cleanup_callbacks
 
             @requests.each_value do |req|
-                req.defer.reject(:disconnected)
+                req.defer.reject(Error::Sockshutdown.new('handle destroyed'))
             end
             @requests = nil
         end
@@ -563,8 +574,7 @@ module Libcouchbase
                     if resp[:rc] == :success
                         req.defer.resolve(yield(req, callback))
                     else
-                        # TODO:: change this to actual error classes
-                        req.defer.reject(resp[:rc])
+                        req.defer.reject(Error.lookup(resp[:rc]).new('request failed'))
                     end
                 rescue => e
                     req.defer.reject(e)
@@ -591,9 +601,8 @@ module Libcouchbase
                     view.received(row_data)
                 end
             else
-                # TODO:: change this to actual error classes
                 view = @requests.delete(row_data[:cookie].address)
-                view.error(resp[:rc].to_s)
+                view.error Error.lookup(resp[:rc]).new
             end
         end
 
