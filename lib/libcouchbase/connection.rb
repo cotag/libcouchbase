@@ -165,6 +165,7 @@ module Libcouchbase
                 expire_at: nil,
                 persist_to: 0,
                 replicate_to: 0,
+                raw: false,
                 cas: nil,
         **opts)
             raise 'not connected' unless @handle
@@ -181,9 +182,10 @@ module Libcouchbase
             end
             key = cmd_set_key(cmd, key)
 
-            # Check if we are storing a whole value or a partial
-            if NonJsonValue.include? operation
-                str_value = value.to_s
+            # Check if we are storing a string or partial value
+            if NonJsonValue.include?(operation) || value.respond_to?(:to_str) || value.is_a?(Symbol) || raw
+                # Use coercion as it was intended
+                str_value = value.respond_to?(:to_str) ? value.to_str : value.to_s
             else
                 # This will raise an error if we're not storing valid json
                 str_value = JSON.generate([value])[1..-2]
@@ -204,7 +206,7 @@ module Libcouchbase
         end
 
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-get.html
-        def get(key, defer: nil, lock: false, cas: nil, **opts)
+        def get(key, defer: nil, lock: false, cas: nil, raw: false, **opts)
             raise 'not connected' unless @handle
             defer ||= @reactor.defer
 
@@ -226,7 +228,7 @@ module Libcouchbase
 
             @reactor.schedule {
                 pointer = cmd.to_ptr
-                @requests[pointer.address] = Request.new(cmd, defer, key)
+                @requests[pointer.address] = Request.new(cmd, defer, key, raw)
                 check_error defer, Ext.get3(@handle, pointer, cmd)
             }
 
@@ -484,9 +486,16 @@ module Libcouchbase
         def callback_get(handle, type, response)
             resp = Ext::RESPGET.new response
             resp_callback_common(resp, :callback_get) do |req, cb|
-                Response.new(cb, req.key, resp[:cas],
-                    JSON.parse("[#{resp[:value].read_string(resp[:nvalue])}]", DECODE_OPTIONS)[0]
-                )
+                val = resp[:value].read_string(resp[:nvalue])
+                raw = req.value
+                if not raw # do we want the raw result?
+                    begin
+                        val = JSON.parse("[#{val}]", DECODE_OPTIONS)[0]
+                    rescue => e
+                        raw = true
+                    end
+                end
+                Response.new(cb, req.key, resp[:cas], val, {raw: raw})
             end
         end
 

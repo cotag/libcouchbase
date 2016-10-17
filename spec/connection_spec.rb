@@ -21,6 +21,27 @@ describe Libcouchbase::Connection do
         expect(@log).to eq([:success])
     end
 
+    it "should store a raw key on the bucket" do
+        reactor.run { |reactor|
+            connection = Libcouchbase::Connection.new
+            connection.connect.then do
+                connection.store('sometestkey', 'rawdata').then(proc {|resp|
+                    @log << resp.callback
+                    prom = connection.store('sometestkey', 'moredata', operation: :append)
+                    prom.then(proc { |success|
+                        connection.get('sometestkey').then(proc {|resp|
+                            @log << resp.value
+                        })
+                    })
+                }, proc { |error|
+                    @log << error
+                }).finally { connection.destroy }
+            end
+        }
+
+        expect(@log).to eq([:callback_store, 'rawdatamoredata'])
+    end
+
     it "should store a key on the default bucket" do
         reactor.run { |reactor|
             connection = Libcouchbase::Connection.new
