@@ -155,6 +155,7 @@ module Libcouchbase
         end
 
         NonJsonValue = [:append, :prepend].freeze
+        SupportedFormats = [:document, :plain, :marshal].freeze
 
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-store.html
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-durability.html
@@ -165,10 +166,11 @@ module Libcouchbase
                 expire_at: nil,
                 persist_to: 0,
                 replicate_to: 0,
-                raw: false,
+                format: :document,
                 cas: nil,
         **opts)
             raise 'not connected' unless @handle
+            raise 'format not supported' unless SupportedFormats.include?(:document)
             defer ||= @reactor.defer
 
             # Check if this should be a durable operation
@@ -183,7 +185,10 @@ module Libcouchbase
             key = cmd_set_key(cmd, key)
 
             # Check if we are storing a string or partial value
-            if NonJsonValue.include?(operation) || value.respond_to?(:to_str) || value.is_a?(Symbol) || raw
+            format = :plain if NonJsonValue.include?(operation)
+            if format == :marshal
+                str_value = Marshal.dump(value)
+            elsif format == :plain
                 # Use coercion as it was intended
                 str_value = value.respond_to?(:to_str) ? value.to_str : value.to_s
             else
@@ -206,7 +211,7 @@ module Libcouchbase
         end
 
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-get.html
-        def get(key, defer: nil, lock: false, cas: nil, raw: false, **opts)
+        def get(key, defer: nil, lock: false, cas: nil, format: :document, **opts)
             raise 'not connected' unless @handle
             defer ||= @reactor.defer
 
@@ -228,7 +233,7 @@ module Libcouchbase
 
             @reactor.schedule {
                 pointer = cmd.to_ptr
-                @requests[pointer.address] = Request.new(cmd, defer, key, raw)
+                @requests[pointer.address] = Request.new(cmd, defer, key, format)
                 check_error defer, Ext.get3(@handle, pointer, cmd)
             }
 
@@ -487,15 +492,19 @@ module Libcouchbase
             resp = Ext::RESPGET.new response
             resp_callback_common(resp, :callback_get) do |req, cb|
                 val = resp[:value].read_string(resp[:nvalue])
-                raw = req.value
-                if not raw # do we want the raw result?
-                    begin
+                
+                format = req.value
+                begin
+                    case format
+                    when :marshal
+                        val = Marshal.load(val)
+                    when :document
                         val = JSON.parse("[#{val}]", DECODE_OPTIONS)[0]
-                    rescue => e
-                        raw = true
                     end
+                rescue => e
+                    format = :plain
                 end
-                Response.new(cb, req.key, resp[:cas], val, {raw: raw})
+                Response.new(cb, req.key, resp[:cas], val, {format: format})
             end
         end
 
@@ -571,6 +580,8 @@ module Libcouchbase
                 end
                 body = if resp[:nbody] > 0
                     resp[:body].read_string_length(resp[:nbody])
+                else
+                    ''
                 end
                 HttpResponse.new(cb, resp[:htstatus], headers, body, req.value)
             end

@@ -25,7 +25,7 @@ describe Libcouchbase::Connection do
         reactor.run { |reactor|
             connection = Libcouchbase::Connection.new
             connection.connect.then do
-                connection.store('sometestkey', 'rawdata').then(proc {|resp|
+                connection.store('sometestkey', 'rawdata', format: :plain).then(proc {|resp|
                     @log << resp.callback
                     prom = connection.store('sometestkey', 'moredata', operation: :append)
                     prom.then(proc { |success|
