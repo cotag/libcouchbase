@@ -6,6 +6,8 @@ require 'libcouchbase/query_view'
 require 'libcouchbase/results_libuv'
 require 'libcouchbase/callbacks'
 require 'libcouchbase/connection'
+require 'libcouchbase/bucket'
+require 'libcouchbase/design_docs'
 
 
 module Libcouchbase

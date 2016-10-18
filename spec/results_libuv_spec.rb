@@ -53,10 +53,12 @@ describe Libcouchbase::ResultsLibuv do
         @query = MockQuery.new(@log)
         @view = Libcouchbase::ResultsLibuv.new(@query)
         expect(@log).to eq([])
+
+        @reactor = ::Libuv::Reactor.default
     end
 
     it "should stream the response" do
-        reactor.run { |reactor|
+        @reactor.run { |reactor|
             @view.each {|i| @log << i }
         }
 
@@ -67,7 +69,7 @@ describe Libcouchbase::ResultsLibuv do
     end
 
     it "should continue to stream the response even if some has already been loaded" do
-        reactor.run { |reactor|
+        @reactor.run { |reactor|
             @query.preloaded = 2
             @view.each {|i| @log << i }
         }
@@ -79,7 +81,7 @@ describe Libcouchbase::ResultsLibuv do
     end
 
     it "should only load what is required" do
-        reactor.run { |reactor|
+        @reactor.run { |reactor|
             @log << @view.take(2)
             @log << @view.first
             expect(@view.complete_result_set).to be(false)
@@ -95,7 +97,7 @@ describe Libcouchbase::ResultsLibuv do
     end
 
     it "should load only once" do
-        reactor.run { |reactor|
+        @reactor.run { |reactor|
             @log << @view.to_a
             @log << @view.to_a
         }
@@ -104,7 +106,7 @@ describe Libcouchbase::ResultsLibuv do
     end
 
     it "should work as an enumerable" do
-        reactor.run { |reactor|
+        @reactor.run { |reactor|
             enum = @view.each
             @log << enum.next
             @log << enum.next
@@ -114,7 +116,7 @@ describe Libcouchbase::ResultsLibuv do
     end
 
     it "should return count" do
-        reactor.run { |reactor|
+        @reactor.run { |reactor|
             @log << @view.count
             @log << @view.count
         }
@@ -123,7 +125,7 @@ describe Libcouchbase::ResultsLibuv do
     end
 
     it "should support streaming the response so results are not all stored in memory" do
-        reactor.run { |reactor|
+        @reactor.run { |reactor|
             @view.stream {|i| @log << i }
         }
 

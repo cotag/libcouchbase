@@ -127,14 +127,28 @@ describe Libcouchbase::Connection do
         reactor.run { |reactor|
             connection = Libcouchbase::Connection.new
             connection.connect.then do
-                expect(connection.configure(:operation_timeout, 1500000)).to be(connection)
-                expect { connection.configure(:bob, 1500000) }.to raise_error(Libcouchbase::Error)
+                expect(co(connection.configure(:operation_timeout, 1500000))).to be(connection)
+                expect { co(connection.configure(:bob, 1500000)) }.to raise_error(Libcouchbase::Error)
                 @log << :success
                 connection.destroy
             end
         }
 
         expect(@log).to eq([:success])
+    end
+
+    it "should return the server list" do
+        reactor.run { |reactor|
+            begin
+                connection = Libcouchbase::Connection.new
+                co connection.connect
+                @log = co(connection.get_server_list)
+            ensure
+                connection.destroy
+            end
+        }
+
+        expect(@log).to eq(['localhost:8091'])
     end
 
     it "should support counter operations" do

@@ -12,7 +12,10 @@ module Libcouchbase
             def dispatch_callback(func_name, lookup, args)
                 instance_id = __send__(lookup, *args)
                 inst = @callback_lookup[instance_id]
-                inst.__send__(func_name, *args)
+                if inst.respond_to? func_name, true
+                    # Wrap all callbacks in a fiber
+                    Fiber.new { inst.__send__(func_name, *args) }.resume
+                end
             end
 
             def define_callback(function:, params: [:pointer, :int, :pointer], ret_val: :void, lookup: :default_lookup)

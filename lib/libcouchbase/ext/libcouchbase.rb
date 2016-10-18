@@ -211,7 +211,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :create, :lcb_create, [:pointer, CreateSt.by_ref], ErrorT
+  attach_function :create, :lcb_create, [:pointer, CreateSt.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -220,7 +220,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :connect, :lcb_connect, [T.by_ref], ErrorT
+  attach_function :connect, :lcb_connect, [T.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -280,7 +280,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :get3, :lcb_get3, [T.by_ref, :pointer, CMDGET.by_ref], ErrorT
+  attach_function :get3, :lcb_get3, [T.by_ref, :pointer, CMDGET.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -291,7 +291,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :rget3, :lcb_rget3, [T.by_ref, :pointer, CMDGETREPLICA.by_ref], ErrorT
+  attach_function :rget3, :lcb_rget3, [T.by_ref, :pointer, CMDGETREPLICA.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -302,7 +302,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :store3, :lcb_store3, [T.by_ref, :pointer, CMDSTORE.by_ref], ErrorT
+  attach_function :store3, :lcb_store3, [T.by_ref, :pointer, CMDSTORE.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -313,7 +313,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :remove3, :lcb_remove3, [T.by_ref, :pointer, CMDBASE.by_ref], ErrorT
+  attach_function :remove3, :lcb_remove3, [T.by_ref, :pointer, CMDBASE.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -324,7 +324,7 @@ module Libcouchbase::Ext
   # @return [MULTICMDCTX]
   # @scope class
   #
-  attach_function :endure3_ctxnew, :lcb_endure3_ctxnew, [T.by_ref, DurabilityOptsT.by_ref, :pointer], MULTICMDCTX.by_ref
+  attach_function :endure3_ctxnew, :lcb_endure3_ctxnew, [T.by_ref, DurabilityOptsT.by_ref, :pointer], MULTICMDCTX.by_ref, :blocking => true
 
   # (Not documented)
   #
@@ -335,7 +335,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :storedur3, :lcb_storedur3, [T.by_ref, :pointer, CMDSTOREDUR.by_ref], ErrorT
+  attach_function :storedur3, :lcb_storedur3, [T.by_ref, :pointer, CMDSTOREDUR.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -347,7 +347,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :durability_validate, :lcb_durability_validate, [T.by_ref, :pointer, :pointer, :int], ErrorT
+  attach_function :durability_validate, :lcb_durability_validate, [T.by_ref, :pointer, :pointer, :int], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -356,7 +356,7 @@ module Libcouchbase::Ext
   # @return [MULTICMDCTX]
   # @scope class
   #
-  attach_function :observe3_ctxnew, :lcb_observe3_ctxnew, [T.by_ref], MULTICMDCTX.by_ref
+  attach_function :observe3_ctxnew, :lcb_observe3_ctxnew, [T.by_ref], MULTICMDCTX.by_ref, :blocking => true
 
   # (Not documented)
   #
@@ -367,7 +367,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :observe_seqno3, :lcb_observe_seqno3, [T.by_ref, :pointer, CMDOBSEQNO.by_ref], ErrorT
+  attach_function :observe_seqno3, :lcb_observe_seqno3, [T.by_ref, :pointer, CMDOBSEQNO.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -377,7 +377,7 @@ module Libcouchbase::Ext
   # @return [MUTATIONTOKEN]
   # @scope class
   #
-  attach_function :resp_get_mutation_token, :lcb_resp_get_mutation_token, [:int, RESPBASE.by_ref], MUTATIONTOKEN.by_ref
+  attach_function :resp_get_mutation_token, :lcb_resp_get_mutation_token, [:int, RESPBASE.by_ref], MUTATIONTOKEN.by_ref, :blocking => true
 
   # (Not documented)
   #
@@ -388,7 +388,7 @@ module Libcouchbase::Ext
   # @return [MUTATIONTOKEN]
   # @scope class
   #
-  attach_function :get_mutation_token, :lcb_get_mutation_token, [T.by_ref, KEYBUF.by_ref, :pointer], MUTATIONTOKEN.by_ref
+  attach_function :get_mutation_token, :lcb_get_mutation_token, [T.by_ref, KEYBUF.by_ref, :pointer], MUTATIONTOKEN.by_ref, :blocking => true
 
   # (Not documented)
   #
@@ -399,7 +399,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :counter3, :lcb_counter3, [T.by_ref, :pointer, CMDCOUNTER.by_ref], ErrorT
+  attach_function :counter3, :lcb_counter3, [T.by_ref, :pointer, CMDCOUNTER.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -410,7 +410,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :unlock3, :lcb_unlock3, [T.by_ref, :pointer, CMDBASE.by_ref], ErrorT
+  attach_function :unlock3, :lcb_unlock3, [T.by_ref, :pointer, CMDBASE.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -421,7 +421,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :touch3, :lcb_touch3, [T.by_ref, :pointer, CMDBASE.by_ref], ErrorT
+  attach_function :touch3, :lcb_touch3, [T.by_ref, :pointer, CMDBASE.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -432,7 +432,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :stats3, :lcb_stats3, [T.by_ref, :pointer, CMDBASE.by_ref], ErrorT
+  attach_function :stats3, :lcb_stats3, [T.by_ref, :pointer, CMDBASE.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -443,7 +443,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :server_versions3, :lcb_server_versions3, [T.by_ref, :pointer, CMDBASE.by_ref], ErrorT
+  attach_function :server_versions3, :lcb_server_versions3, [T.by_ref, :pointer, CMDBASE.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -454,7 +454,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :server_verbosity3, :lcb_server_verbosity3, [T.by_ref, :pointer, CMDVERBOSITY.by_ref], ErrorT
+  attach_function :server_verbosity3, :lcb_server_verbosity3, [T.by_ref, :pointer, CMDVERBOSITY.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -465,7 +465,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :cbflush3, :lcb_cbflush3, [T.by_ref, :pointer, CMDBASE.by_ref], ErrorT
+  attach_function :cbflush3, :lcb_cbflush3, [T.by_ref, :pointer, CMDBASE.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -476,7 +476,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :flush3, :lcb_flush3, [T.by_ref, :pointer, CMDBASE.by_ref], ErrorT
+  attach_function :flush3, :lcb_flush3, [T.by_ref, :pointer, CMDBASE.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -487,7 +487,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :http3, :lcb_http3, [T.by_ref, :pointer, CMDHTTP.by_ref], ErrorT
+  attach_function :http3, :lcb_http3, [T.by_ref, :pointer, CMDHTTP.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -497,7 +497,7 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :cancel_http_request, :lcb_cancel_http_request, [T.by_ref, HttpRequestT.by_ref], :void
+  attach_function :cancel_http_request, :lcb_cancel_http_request, [T.by_ref, HttpRequestT.by_ref], :void, :blocking => true
 
   # (Not documented)
   #
@@ -525,7 +525,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :wait, :lcb_wait, [T.by_ref], ErrorT
+  attach_function :wait, :lcb_wait, [T.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -534,7 +534,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :tick_nowait, :lcb_tick_nowait, [T.by_ref], ErrorT
+  attach_function :tick_nowait, :lcb_tick_nowait, [T.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -544,7 +544,7 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :wait3, :lcb_wait3, [T.by_ref, WAITFLAGS], :void
+  attach_function :wait3, :lcb_wait3, [T.by_ref, WAITFLAGS], :void, :blocking => true
 
   # (Not documented)
   #
@@ -553,7 +553,7 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :breakout, :lcb_breakout, [T.by_ref], :void
+  attach_function :breakout, :lcb_breakout, [T.by_ref], :void, :blocking => true
 
   # (Not documented)
   #
@@ -562,7 +562,7 @@ module Libcouchbase::Ext
   # @return [Integer]
   # @scope class
   #
-  attach_function :is_waiting, :lcb_is_waiting, [T.by_ref], :int
+  attach_function :is_waiting, :lcb_is_waiting, [T.by_ref], :int, :blocking => true
 
   # (Not documented)
   #
@@ -571,7 +571,7 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :refresh_config, :lcb_refresh_config, [T.by_ref], :void
+  attach_function :refresh_config, :lcb_refresh_config, [T.by_ref], :void, :blocking => true
 
   # (Not documented)
   #
@@ -580,7 +580,7 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :sched_enter, :lcb_sched_enter, [T.by_ref], :void
+  attach_function :sched_enter, :lcb_sched_enter, [T.by_ref], :void, :blocking => true
 
   # (Not documented)
   #
@@ -589,7 +589,7 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :sched_leave, :lcb_sched_leave, [T.by_ref], :void
+  attach_function :sched_leave, :lcb_sched_leave, [T.by_ref], :void, :blocking => true
 
   # (Not documented)
   #
@@ -598,7 +598,7 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :sched_fail, :lcb_sched_fail, [T.by_ref], :void
+  attach_function :sched_fail, :lcb_sched_fail, [T.by_ref], :void, :blocking => true
 
   # (Not documented)
   #
@@ -607,7 +607,7 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :sched_flush, :lcb_sched_flush, [T.by_ref], :void
+  attach_function :sched_flush, :lcb_sched_flush, [T.by_ref], :void, :blocking => true
 
   # (Not documented)
   #
@@ -616,7 +616,7 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :destroy, :lcb_destroy, [T.by_ref], :void
+  attach_function :destroy, :lcb_destroy, [T.by_ref], :void, :blocking => true
 
   # (Not documented)
   #
@@ -636,7 +636,7 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :destroy_async, :lcb_destroy_async, [T.by_ref, :pointer], :void
+  attach_function :destroy_async, :lcb_destroy_async, [T.by_ref, :pointer], :void, :blocking => true
 
   # (Not documented)
   #
@@ -647,7 +647,7 @@ module Libcouchbase::Ext
   # @return [String]
   # @scope class
   #
-  attach_function :get_node, :lcb_get_node, [T.by_ref, GETNODETYPE, :uint], :string
+  attach_function :get_node, :lcb_get_node, [T.by_ref, GETNODETYPE, :uint], :string, :blocking => true
 
   # (Not documented)
   #
@@ -658,7 +658,7 @@ module Libcouchbase::Ext
   # @return [String]
   # @scope class
   #
-  attach_function :get_keynode, :lcb_get_keynode, [T.by_ref, :pointer, :ulong], :string
+  attach_function :get_keynode, :lcb_get_keynode, [T.by_ref, :pointer, :ulong], :string, :blocking => true
 
   # (Not documented)
   #
@@ -667,7 +667,7 @@ module Libcouchbase::Ext
   # @return [Integer]
   # @scope class
   #
-  attach_function :get_num_replicas, :lcb_get_num_replicas, [T.by_ref], :int
+  attach_function :get_num_replicas, :lcb_get_num_replicas, [T.by_ref], :int, :blocking => true
 
   # (Not documented)
   #
@@ -676,7 +676,7 @@ module Libcouchbase::Ext
   # @return [Integer]
   # @scope class
   #
-  attach_function :get_num_nodes, :lcb_get_num_nodes, [T.by_ref], :int
+  attach_function :get_num_nodes, :lcb_get_num_nodes, [T.by_ref], :int, :blocking => true
 
   # (Not documented)
   #
@@ -685,7 +685,7 @@ module Libcouchbase::Ext
   # @return [FFI::Pointer(**CharS)]
   # @scope class
   #
-  attach_function :get_server_list, :lcb_get_server_list, [T.by_ref], :pointer
+  attach_function :get_server_list, :lcb_get_server_list, [T.by_ref], :pointer, :blocking => true
 
   # (Not documented)
   #
@@ -696,7 +696,7 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :dump, :lcb_dump, [T.by_ref, :pointer, :uint], :void
+  attach_function :dump, :lcb_dump, [T.by_ref, :pointer, :uint], :void, :blocking => true
 
   # (Not documented)
   #
@@ -708,7 +708,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :cntl, :lcb_cntl, [T.by_ref, :int, :int, :pointer], ErrorT
+  attach_function :cntl, :lcb_cntl, [T.by_ref, :int, :int, :pointer], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -719,7 +719,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :cntl_string, :lcb_cntl_string, [T.by_ref, :string, :string], ErrorT
+  attach_function :cntl_string, :lcb_cntl_string, [T.by_ref, :string, :string], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -730,7 +730,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :cntl_setu32, :lcb_cntl_setu32, [T.by_ref, :int, :uint], ErrorT
+  attach_function :cntl_setu32, :lcb_cntl_setu32, [T.by_ref, :int, :uint], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -740,7 +740,7 @@ module Libcouchbase::Ext
   # @return [Integer]
   # @scope class
   #
-  attach_function :cntl_getu32, :lcb_cntl_getu32, [T.by_ref, :int], :uint
+  attach_function :cntl_getu32, :lcb_cntl_getu32, [T.by_ref, :int], :uint, :blocking => true
 
   # (Not documented)
   #
@@ -749,7 +749,7 @@ module Libcouchbase::Ext
   # @return [Integer]
   # @scope class
   #
-  attach_function :cntl_exists, :lcb_cntl_exists, [:int], :int
+  attach_function :cntl_exists, :lcb_cntl_exists, [:int], :int, :blocking => true
 
   # (Not documented)
   #
@@ -758,7 +758,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :enable_timings, :lcb_enable_timings, [T.by_ref], ErrorT
+  attach_function :enable_timings, :lcb_enable_timings, [T.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -767,7 +767,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :disable_timings, :lcb_disable_timings, [T.by_ref], ErrorT
+  attach_function :disable_timings, :lcb_disable_timings, [T.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -778,7 +778,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :get_timings, :lcb_get_timings, [T.by_ref, :pointer, :timings_callback], ErrorT
+  attach_function :get_timings, :lcb_get_timings, [T.by_ref, :pointer, :timings_callback], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -787,7 +787,7 @@ module Libcouchbase::Ext
   # @return [String]
   # @scope class
   #
-  attach_function :get_version, :lcb_get_version, [:pointer], :string
+  attach_function :get_version, :lcb_get_version, [:pointer], :string, :blocking => true
 
   # (Not documented)
   #
@@ -796,7 +796,7 @@ module Libcouchbase::Ext
   # @return [Integer]
   # @scope class
   #
-  attach_function :supports_feature, :lcb_supports_feature, [:int], :int
+  attach_function :supports_feature, :lcb_supports_feature, [:int], :int, :blocking => true
 
   # (Not documented)
   #
@@ -805,7 +805,7 @@ module Libcouchbase::Ext
   # @return [FFI::Pointer(*Void)]
   # @scope class
   #
-  attach_function :mem_alloc, :lcb_mem_alloc, [:ulong], :pointer
+  attach_function :mem_alloc, :lcb_mem_alloc, [:ulong], :pointer, :blocking => true
 
   # (Not documented)
   #
@@ -814,7 +814,7 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :mem_free, :lcb_mem_free, [:pointer], :void
+  attach_function :mem_free, :lcb_mem_free, [:pointer], :void, :blocking => true
 
   # (Not documented)
   #
@@ -823,7 +823,7 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :run_loop, :lcb_run_loop, [T.by_ref], :void
+  attach_function :run_loop, :lcb_run_loop, [T.by_ref], :void, :blocking => true
 
   # (Not documented)
   #
@@ -832,7 +832,7 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :stop_loop, :lcb_stop_loop, [T.by_ref], :void
+  attach_function :stop_loop, :lcb_stop_loop, [T.by_ref], :void, :blocking => true
 
   # (Not documented)
   #
@@ -840,7 +840,7 @@ module Libcouchbase::Ext
   # @return [Integer]
   # @scope class
   #
-  attach_function :nstime, :lcb_nstime, [], :ulong_long
+  attach_function :nstime, :lcb_nstime, [], :ulong_long, :blocking => true
 
   # (Not documented)
   #
@@ -848,7 +848,7 @@ module Libcouchbase::Ext
   # @return [HISTOGRAM]
   # @scope class
   #
-  attach_function :histogram_create, :lcb_histogram_create, [], HISTOGRAM.by_ref
+  attach_function :histogram_create, :lcb_histogram_create, [], HISTOGRAM.by_ref, :blocking => true
 
   # (Not documented)
   #
@@ -857,7 +857,7 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :histogram_destroy, :lcb_histogram_destroy, [HISTOGRAM.by_ref], :void
+  attach_function :histogram_destroy, :lcb_histogram_destroy, [HISTOGRAM.by_ref], :void, :blocking => true
 
   # (Not documented)
   #
@@ -867,7 +867,7 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :histogram_record, :lcb_histogram_record, [HISTOGRAM.by_ref, :ulong_long], :void
+  attach_function :histogram_record, :lcb_histogram_record, [HISTOGRAM.by_ref, :ulong_long], :void, :blocking => true
 
   # (Not documented)
   #
@@ -878,7 +878,7 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :histogram_read, :lcb_histogram_read, [HISTOGRAM.by_ref, :pointer, :histogram_callback], :void
+  attach_function :histogram_read, :lcb_histogram_read, [HISTOGRAM.by_ref, :pointer, :histogram_callback], :void, :blocking => true
 
   # (Not documented)
   #
@@ -888,7 +888,7 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :histogram_print, :lcb_histogram_print, [HISTOGRAM.by_ref, :pointer], :void
+  attach_function :histogram_print, :lcb_histogram_print, [HISTOGRAM.by_ref, :pointer], :void, :blocking => true
 
   # (Not documented)
   #
@@ -899,7 +899,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :subdoc3, :lcb_subdoc3, [T.by_ref, :pointer, CMDSUBDOC.by_ref], ErrorT
+  attach_function :subdoc3, :lcb_subdoc3, [T.by_ref, :pointer, CMDSUBDOC.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -910,7 +910,7 @@ module Libcouchbase::Ext
   # @return [Integer]
   # @scope class
   #
-  attach_function :sdresult_next, :lcb_sdresult_next, [RESPSUBDOC.by_ref, SDENTRY.by_ref, :pointer], :int
+  attach_function :sdresult_next, :lcb_sdresult_next, [RESPSUBDOC.by_ref, SDENTRY.by_ref, :pointer], :int, :blocking => true
 
   # (Not documented)
   #
@@ -921,7 +921,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :view_query, :lcb_view_query, [T.by_ref, :pointer, CMDVIEWQUERY.by_ref], ErrorT
+  attach_function :view_query, :lcb_view_query, [T.by_ref, :pointer, CMDVIEWQUERY.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -944,7 +944,7 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :view_cancel, :lcb_view_cancel, [T.by_ref, VIEWHANDLE.by_ref], :void
+  attach_function :view_cancel, :lcb_view_cancel, [T.by_ref, VIEWHANDLE.by_ref], :void, :blocking => true
 
   # (Not documented)
   #
@@ -1081,7 +1081,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :n1ql_query, :lcb_n1ql_query, [T.by_ref, :pointer, CMDN1QL.by_ref], ErrorT
+  attach_function :n1ql_query, :lcb_n1ql_query, [T.by_ref, :pointer, CMDN1QL.by_ref], ErrorT, :blocking => true
 
   # (Not documented)
   #
@@ -1091,7 +1091,7 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :n1ql_cancel, :lcb_n1ql_cancel, [T.by_ref, N1QLHANDLE.by_ref], :void
+  attach_function :n1ql_cancel, :lcb_n1ql_cancel, [T.by_ref, N1QLHANDLE.by_ref], :void, :blocking => true
 
   # @volatile
   # Issue a full-text query. The callback (lcb_CMDFTS::callback) will be invoked
@@ -1110,7 +1110,7 @@ module Libcouchbase::Ext
   # @return [ErrorT]
   # @scope class
   #
-  attach_function :fts_query, :lcb_fts_query, [T.by_ref, :pointer, CMDFTS.by_ref], ErrorT
+  attach_function :fts_query, :lcb_fts_query, [T.by_ref, :pointer, CMDFTS.by_ref], ErrorT, :blocking => true
 
   # @volatile
   # Cancel a full-text query in progress. The handle is usually obtained via the
@@ -1122,6 +1122,6 @@ module Libcouchbase::Ext
   # @return [nil]
   # @scope class
   #
-  attach_function :fts_cancel, :lcb_fts_cancel, [T.by_ref, FTSHANDLE.by_ref], :void
+  attach_function :fts_cancel, :lcb_fts_cancel, [T.by_ref, FTSHANDLE.by_ref], :void, :blocking => true
 
 end

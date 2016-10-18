@@ -40,7 +40,7 @@ module Libcouchbase
             @bucket = bucket
 
             # Configure the event loop settings
-            @reactor = thread || reactor
+            @reactor = thread || ::Libuv::Reactor.default
             @io_opts = Ext::UVOptions.new
             @io_opts[:version] = 0
             @io_opts[:loop] = @reactor.handle
@@ -62,7 +62,7 @@ module Libcouchbase
         end
 
 
-        attr_reader :requests, :handle, :bucket
+        attr_reader :requests, :handle, :bucket, :reactor
 
         def get_callback(cb)
             callback(cb)
@@ -70,73 +70,79 @@ module Libcouchbase
 
 
         def connect(defer: nil, flush_enabled: false)
-            raise 'already connected' if @handle
+            raise 'already connected' if @handle || @bootstrap_defer
             @bootstrap_defer = defer || @reactor.defer
-            @flush_enabled = flush_enabled
             promise = @bootstrap_defer.promise
 
-            # support a callback as well as a promise
-            if block_given?
-                promise.then do |result|
-                    yield true, *result
+            @reactor.schedule {
+                @flush_enabled = flush_enabled
+
+                # support a callback as well as a promise
+                if block_given?
+                    promise.then do |result|
+                        yield true, *result
+                    end
+                    promise.catch do |result|
+                        yield false, *result
+                    end
                 end
-                promise.catch do |result|
-                    yield false, *result
+
+                @requests = {}
+
+                # Create a library handle
+                #  the create call allocates the memory and updates our pointer
+                err = Ext.create(@handle_ptr, @connection)
+                if err != :success
+                    @bootstrap_defer.reject(Error.lookup(err).new('failed to create instance'))
+                    handle_destroyed
+                else
+                    # We extract the pointer and create the handle structure
+                    @ref = @handle_ptr.get_pointer(0).address
+                    @handle = Ext::T.new @handle_ptr.get_pointer(0)
+
+                    # Register the callbacks we are interested in
+                    Ext.set_bootstrap_callback(@handle, callback(:bootstrap_callback))
+
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_get],     callback(:callback_get))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_unlock],  callback(:callback_unlock))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_store],   callback(:callback_store))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_storedur],callback(:callback_storedur))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_counter], callback(:callback_counter))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_touch],   callback(:callback_touch))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_remove],  callback(:callback_remove))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_http],    callback(:callback_http))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_cbflush], callback(:callback_cbflush)) if @flush_enabled
+
+                    # Connect to the database
+                    err = Ext.connect(@handle)
+                    if err != :success
+                        @bootstrap_defer.reject(Error.lookup(err).new('failed to schedule connect'))
+                        destroy
+                    end
                 end
-            end
-
-            @requests = {}
-
-            # Create a library handle
-            #  the create call allocates the memory and updates our pointer
-            err = Ext.create(@handle_ptr, @connection)
-            if err != :success
-                raise Error.lookup(err), 'failed to create instance'
-            end
-
-            # We extract the pointer and create the handle structure
-            @ref = @handle_ptr.get_pointer(0).address
-            @handle = Ext::T.new @handle_ptr.get_pointer(0)
-
-            # Register the callbacks we are interested in
-            Ext.set_bootstrap_callback(@handle, callback(:bootstrap_callback))
-
-            Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_get],     callback(:callback_get))
-            Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_unlock],  callback(:callback_unlock))
-            Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_store],   callback(:callback_store))
-            Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_storedur],callback(:callback_storedur))
-            Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_counter], callback(:callback_counter))
-            Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_touch],   callback(:callback_touch))
-            Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_remove],  callback(:callback_remove))
-            Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_http],    callback(:callback_http))
-            Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_cbflush], callback(:callback_cbflush)) if @flush_enabled
-
-            # Connect to the database
-            err = Ext.connect(@handle)
-            if err != :success
-                destroy
-                raise Error.lookup(err), 'failed to schedule connect'
-            end
+            }
 
             promise
         end
 
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-cntl.html
         def configure(setting, value)
-            raise 'not connected' unless @handle
-
             # Ensure it is thread safe
             defer = @reactor.defer
             @reactor.schedule {
-                err = Ext.cntl_string(@handle, setting.to_s, value.to_s)
-                if err == :success
-                    defer.resolve(self)
+                if @handle
+                    err = Ext.cntl_string(@handle, setting.to_s, value.to_s)
+                    if err == :success
+                        defer.resolve(self)
+                    else
+                        defer.reject(Error.lookup(err).new("failed to configure #{setting}=#{value}"))
+                    end
                 else
-                    defer.reject(Error.lookup(err).new("failed to configure #{setting}=#{value}"))
+                    defer.reject(RuntimeError.new('not connected'))
                 end
             }
 
-            co defer.promise
+            defer.promise
         end
 
         def destroy
@@ -151,7 +157,27 @@ module Libcouchbase
                 defer.resolve(self)
             }
 
-            co defer.promise
+            defer.promise
+        end
+
+        def get_server_list
+            defer = @reactor.defer
+
+            # Ensure it is thread safe
+            @reactor.schedule {
+                if @handle
+                    resp = Ext.get_server_list(@handle)
+                    if resp.null?
+                        defer.reject(RuntimeError.new('not connected'))
+                    else
+                        defer.resolve(resp.get_array_of_string(0))
+                    end
+                else
+                    defer.reject(RuntimeError.new('not connected'))
+                end
+            }
+
+            defer.promise
         end
 
         NonJsonValue = [:append, :prepend].freeze
@@ -182,6 +208,7 @@ module Libcouchbase
             else
                 cmd = Ext::CMDSTORE.new
             end
+            cmd[:operation] = operation
             key = cmd_set_key(cmd, key)
 
             # Check if we are storing a string or partial value
@@ -198,7 +225,6 @@ module Libcouchbase
             cmd_set_value(cmd, str_value)
 
             cmd[:cas] = cas if cas
-            cmd[:operation] = operation
             cmd[:exptime] = expire_in ? expires_in(expire_in) : expire_at.to_i
 
             @reactor.schedule {
@@ -323,7 +349,7 @@ module Libcouchbase
         end
 
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-flush.html
-        def flush(defer: nil, **opts)
+        def flush(defer: nil)
             raise 'not connected' unless @handle
             raise 'flush not enabled' unless @flush_enabled
             defer ||= @reactor.defer
