@@ -25,7 +25,15 @@ module Libcouchbase
         define_callback function: :fts_callback
 
 
-        Request  = Struct.new(:cmd, :defer, :key, :value)
+        Request = Struct.new(:cmd, :defer, :key, :value) do
+            # We need to hold a reference to strings so they are not GC'd
+            def ref(string)
+                @refs ||= []
+                str = FFI::MemoryPointer.from_string(string)
+                @refs << str
+                str
+            end
+        end
         Response = Struct.new(:callback, :key, :cas, :value, :metadata)
         HttpResponse = Struct.new(:callback, :status, :headers, :body, :request)
 
@@ -209,7 +217,6 @@ module Libcouchbase
                 cmd = Ext::CMDSTORE.new
             end
             cmd[:operation] = operation
-            key = cmd_set_key(cmd, key)
 
             # Check if we are storing a string or partial value
             format = :plain if NonJsonValue.include?(operation)
@@ -222,15 +229,19 @@ module Libcouchbase
                 # This will raise an error if we're not storing valid json
                 str_value = JSON.generate([value])[1..-2]
             end
-            cmd_set_value(cmd, str_value)
+
+            req = Request.new(cmd, defer)
+            req.value = value
+            cmd_set_value(req, cmd, str_value)
+            key = cmd_set_key(req, cmd, key)
 
             cmd[:cas] = cas if cas
             cmd[:exptime] = expire_in ? expires_in(expire_in) : expire_at.to_i
 
             @reactor.schedule {
                 pointer = cmd.to_ptr
-                @requests[pointer.address] = Request.new(cmd, defer, key, value)
-                check_error(defer, durable ? Ext.storedur3(@handle, pointer, cmd) : Ext.store3(@handle, pointer, cmd))
+                @requests[pointer.address] = req
+                check_error(key, defer, durable ? Ext.storedur3(@handle, pointer, cmd) : Ext.store3(@handle, pointer, cmd))
             }
             
             defer.promise
@@ -242,7 +253,9 @@ module Libcouchbase
             defer ||= @reactor.defer
 
             cmd = Ext::CMDGET.new
-            key = cmd_set_key(cmd, key)
+            req = Request.new(cmd, defer)
+            req.value = format
+            key = cmd_set_key(req, cmd, key)
             cmd[:cas] = cas if cas
 
             # exptime == the lock expire time
@@ -259,8 +272,8 @@ module Libcouchbase
 
             @reactor.schedule {
                 pointer = cmd.to_ptr
-                @requests[pointer.address] = Request.new(cmd, defer, key, format)
-                check_error defer, Ext.get3(@handle, pointer, cmd)
+                @requests[pointer.address] = req
+                check_error key, defer, Ext.get3(@handle, pointer, cmd)
             }
 
             defer.promise
@@ -272,13 +285,14 @@ module Libcouchbase
             defer ||= @reactor.defer
 
             cmd = Ext::CMDBASE.new
-            key = cmd_set_key(cmd, key)
+            req = Request.new(cmd, defer)
+            key = cmd_set_key(req, cmd, key)
             cmd[:cas] = cas
 
             @reactor.schedule {
                 pointer = cmd.to_ptr
                 @requests[pointer.address] = Request.new(cmd, defer, key)
-                check_error defer, Ext.unlock3(@handle, pointer, cmd)
+                check_error key, defer, Ext.unlock3(@handle, pointer, cmd)
             }
 
             defer.promise
@@ -290,13 +304,14 @@ module Libcouchbase
             defer ||= @reactor.defer
 
             cmd = Ext::CMDBASE.new
-            key = cmd_set_key(cmd, key)
+            req = Request.new(cmd, defer)
+            key = cmd_set_key(req, cmd, key)
             cmd[:cas] = cas if cas
 
             @reactor.schedule {
                 pointer = cmd.to_ptr
-                @requests[pointer.address] = Request.new(cmd, defer, key)
-                check_error defer, Ext.remove3(@handle, pointer, cmd)
+                @requests[pointer.address] = req
+                check_error key, defer, Ext.remove3(@handle, pointer, cmd)
             }
 
             defer.promise
@@ -308,7 +323,8 @@ module Libcouchbase
             defer ||= @reactor.defer
 
             cmd = Ext::CMDCOUNTER.new
-            key = cmd_set_key(cmd, key)
+            req = Request.new(cmd, defer)
+            key = cmd_set_key(req, cmd, key)
 
             cmd[:cas] = cas if cas
             cmd[:exptime] = expire_in ? expires_in(expire_in) : expire_at.to_i
@@ -320,8 +336,8 @@ module Libcouchbase
 
             @reactor.schedule {
                 pointer = cmd.to_ptr
-                @requests[pointer.address] = Request.new(cmd, defer, key)
-                check_error defer, Ext.counter3(@handle, pointer, cmd)
+                @requests[pointer.address] = req
+                check_error key, defer, Ext.counter3(@handle, pointer, cmd)
             }
 
             defer.promise
@@ -334,15 +350,16 @@ module Libcouchbase
             defer ||= @reactor.defer
 
             cmd = Ext::CMDBASE.new
-            key = cmd_set_key(cmd, key)
+            req = Request.new(cmd, defer)
+            key = cmd_set_key(req, cmd, key)
 
             cmd[:cas] = cas if cas
             cmd[:exptime] = expire_in ? expires_in(expire_in) : expire_at.to_i
 
             @reactor.schedule {
                 pointer = cmd.to_ptr
-                @requests[pointer.address] = Request.new(cmd, defer, key)
-                check_error defer, Ext.touch3(@handle, pointer, cmd)
+                @requests[pointer.address] = req
+                check_error key, defer, Ext.touch3(@handle, pointer, cmd)
             }
 
             defer.promise
@@ -358,8 +375,8 @@ module Libcouchbase
 
             @reactor.schedule {
                 pointer = cmd.to_ptr
-                @requests[pointer.address] = Request.new(cmd, defer)
-                check_error defer, Ext.cbflush3(@handle, pointer, cmd)
+                @requests[pointer.address] = Request.new(cmd, defer, :flush)
+                check_error :flush, defer, Ext.cbflush3(@handle, pointer, cmd)
             }
 
             defer.promise
@@ -399,7 +416,17 @@ module Libcouchbase
             defer ||= @reactor.defer
 
             cmd = Ext::CMDHTTP.new
-            cmd_set_key(cmd, path)
+            req = Request.new(cmd, defer)
+            req.value = {
+                path: path,
+                method: method,
+                body: body,
+                content_type: content_type,
+                type: type,
+                no_auth: no_auth
+            }
+            cmd_set_key(req, cmd, path)
+
             if timeout
                 cmd[:cas] = timeout
                 cmd[:cmdflags] |= CMDHTTP_F_CASTMO
@@ -407,26 +434,20 @@ module Libcouchbase
             cmd[:cmdflags] |= CMDHTTP_F_NOUPASS if no_auth
             cmd[:type] = type
             cmd[:method] = method
+
             if body_content
-                cmd[:body] = FFI::MemoryPointer.from_string(body_content)
+                cmd[:body] = req.ref(body_content)
                 cmd[:nbody] = body_content.bytesize
             end
-            cmd[:content_type] = FFI::MemoryPointer.from_string(content_type) if content_type
-            cmd[:username] = FFI::MemoryPointer.from_string(username) if username
-            cmd[:password] = FFI::MemoryPointer.from_string(password) if password
+            cmd[:content_type] = req.ref(content_type) if content_type
+            cmd[:username] = req.ref(username) if username
+            cmd[:password] = req.ref(password) if password
 
 
             @reactor.schedule {
                 pointer = cmd.to_ptr
-                @requests[pointer.address] = Request.new(cmd, defer, path, {
-                    path: path,
-                    method: method,
-                    body: body,
-                    content_type: content_type,
-                    type: type,
-                    no_auth: no_auth
-                })
-                check_error defer, Ext.http3(@handle, pointer, cmd)
+                @requests[pointer.address] = req
+                check_error path, defer, Ext.http3(@handle, pointer, cmd)
             }
 
             defer.promise
@@ -440,22 +461,24 @@ module Libcouchbase
         private
 
 
-        def cmd_set_key(cmd, val)
-            key = val.to_s
+        def cmd_set_key(req, cmd, value)
+            key = value.to_s
             cmd[:key][:type] = :kv_copy
-            str = FFI::MemoryPointer.from_string(key)
+            str = req.ref(key)
+            req.key = value
             str.autorelease = true
             cmd[:key][:contig][:bytes] = str
             cmd[:key][:contig][:nbytes] = key.bytesize
             key
         end
 
-        def cmd_set_value(cmd, value)
+        def cmd_set_value(req, cmd, value)
+            val = value.to_s
             cmd[:value][:vtype] = :kv_copy
-            str = FFI::MemoryPointer.from_string(value)
+            str = req.ref(val)
             str.autorelease = true
             cmd[:value][:u_buf][:contig][:bytes] = str
-            cmd[:value][:u_buf][:contig][:nbytes] = value.bytesize
+            cmd[:value][:u_buf][:contig][:nbytes] = val.bytesize
         end
 
         # 30 days in seconds
@@ -470,9 +493,12 @@ module Libcouchbase
             end
         end
 
-        def check_error(defer, err)
+        def check_error(key, defer, err)
             if err != :success
-                defer.reject Error.lookup(err).new('request not scheduled')
+                error = Error.lookup(err).new("request not scheduled for #{key}")
+                backtrace = caller
+                error.set_backtrace backtrace
+                defer.reject error
             end
         end
 
@@ -622,7 +648,7 @@ module Libcouchbase
                     if resp[:rc] == :success
                         req.defer.resolve(yield(req, callback))
                     else
-                        req.defer.reject(Error.lookup(resp[:rc]).new('request failed'))
+                        req.defer.reject(Error.lookup(resp[:rc]).new("#{callback} failed for #{req.key}"))
                     end
                 rescue => e
                     req.defer.reject(e)
