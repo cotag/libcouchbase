@@ -31,14 +31,15 @@ module Libcouchbase
             raise 'not connected' unless @connection.handle
             raise 'query already in progress' if @cmd
 
-            options = @options.merge(options)
-            pairs = []
-            @options.each { |key, val| pairs << "#{key}=#{val}" }
-            opts = pairs.join('&')
-
-            @error = nil
-
             @reactor.schedule {
+                options = @options.merge(options)
+                pairs = []
+
+                @options.each { |key, val| pairs << "#{key}=#{val}" }
+                opts = pairs.join('&')
+
+                @error = nil
+
                 @callback = blk
                 @cmd = Ext::CMDVIEWQUERY.new
                 Ext.view_query_initcmd(@cmd, @design, @view, opts, @connection.get_callback(:viewquery_callback))

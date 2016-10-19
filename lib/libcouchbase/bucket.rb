@@ -15,8 +15,6 @@ module Libcouchbase
         end
 
         def initialize(**options)
-            reactor = ::Libuv::Reactor.current
-            opts[:thread] ||= reactor if reactor && reactor.running?
             @connection = Connection.new(**options)
             connect
 
@@ -34,22 +32,23 @@ module Libcouchbase
 
         def get(*keys, extended: false, **opts)
             if keys.length == 1
-                result @connection.get(keys[0], **opts).then do |result|
-                    extended ? result : result.value
-                end
+                result @connection.get(keys[0], **opts).then(proc { |resp|
+                    extended ? resp : resp.value
+                })
             else
                 promises = keys.collect { |key|
                     @connection.get(key, **opts)
                 }
-                result @reactor.all(promises).then do |results|
+                result @reactor.all(promises).then(proc { |results|
                     if extended
                         results
                     else
                         results.collect { |resp| resp.value }
                     end
-                end
+                })
             end
         end
+        alias_method :[], :get
 
         AddDefaults = {operation: :add}.freeze
         def add(key, value, **opts)
@@ -58,22 +57,23 @@ module Libcouchbase
 
         def set(key, value, **opts)
             # default operation is set
-            result @connection.add(key, value, **opts)
+            result @connection.store(key, value, **opts)
         end
+        alias_method :[]=, :set
 
         ReplaceDefaults = {operation: :replace}.freeze
         def replace(key, value, **opts)
-            result @connection.add(key, value, **ReplaceDefaults.merge(opts))
+            result @connection.store(key, value, **ReplaceDefaults.merge(opts))
         end
 
         AppendDefaults = {operation: :append}.freeze
         def append(key, value, **opts)
-            result @connection.add(key, value, **AppendDefaults.merge(opts))
+            result @connection.store(key, value, **AppendDefaults.merge(opts))
         end
 
         PrependDefaults = {operation: :prepend}.freeze
         def prepend(key, value, **opts)
-            result @connection.add(key, value, **PrependDefaults.merge(opts))
+            result @connection.store(key, value, **PrependDefaults.merge(opts))
         end
 
         def incr(key, by = 1, create: false, **opts)
@@ -94,8 +94,26 @@ module Libcouchbase
             DesignDocs.new(self, @connection, method(:result), **opts)
         end
 
-        def query_view(design, view, **args, &blk)
-            # TODO::
+        ViewDefaults = {
+            on_error: :stop,
+            stale: false
+        }
+        ViewDefaultRowModifier = proc { |entry| entry.value }
+        def view(design, view, extended: false, **opts, &row_modifier)
+            view = @connection.query_view(design, view, **ViewDefaults.merge(opts))
+
+            unless block_given? || extended
+                row_modifier = ViewDefaultRowModifier
+            end
+            current = ::Libuv::Reactor.current
+
+            if current && current.running?
+                ResultsLibuv.new(view, current, &row_modifier)
+            elsif Object.const_defined?(:EventMachine) && EM.reactor_thread?
+                # TODO::
+            else
+                ResultsNative.new(view, &row_modifier)
+            end
         end
 
 
@@ -105,7 +123,7 @@ module Libcouchbase
         def result(promise)
             current = ::Libuv::Reactor.current
             if current && current.running?
-                co @connection.connect
+                co promise
             elsif Object.const_defined?(:EventMachine) && EM.reactor_thread?
                 # TODO::
             else
@@ -146,6 +164,7 @@ module Libcouchbase
             end
         end
 
+        # This blocks on the current thread
         def start_reactor_and_connect
             connecting = Mutex.new
             result = ConditionVariable.new

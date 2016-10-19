@@ -15,6 +15,9 @@ describe Libcouchbase::DesignDocs do
 
     it "should list the available views" do
         views = @ddoc.design("user").views
-        expect(designs.count).to eq(23)
+        expect(views).to eq([:is_sys_admin])
+
+        views = @ddoc[:user].views
+        expect(views).to eq([:is_sys_admin])
     end
 end

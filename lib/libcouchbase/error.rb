@@ -5,6 +5,9 @@ module Libcouchbase
 
     class Error < ::StandardError
         class UnknownError < ::Libcouchbase::Error; end
+        class HttpResponseError < ::Libcouchbase::Error
+            attr_accessor :code, :headers, :body
+        end
         Lookup = {}
 
         # Borrowed from:

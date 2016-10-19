@@ -2,13 +2,14 @@
 
 require 'libcouchbase/ext/libcouchbase_libuv'
 require 'libcouchbase/error'
-require 'libcouchbase/query_view'
-require 'libcouchbase/results_libuv'
 require 'libcouchbase/callbacks'
 require 'libcouchbase/connection'
-require 'libcouchbase/bucket'
-require 'libcouchbase/design_docs'
-
 
 module Libcouchbase
+    autoload :Bucket,        'libcouchbase/bucket'
+    autoload :QueryView,     'libcouchbase/query_view'
+    autoload :DesignDoc,     'libcouchbase/design_docs'
+    autoload :DesignDocs,    'libcouchbase/design_docs'
+    autoload :ResultsLibuv,  'libcouchbase/results_libuv'
+    autoload :ResultsNative, 'libcouchbase/results_native'
 end

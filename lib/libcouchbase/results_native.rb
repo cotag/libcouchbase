@@ -2,21 +2,19 @@ require 'set'
 
 
 module Libcouchbase
-    class ResultsLibuv
+    class ResultsNative
         include Enumerable
 
-        def initialize(query, thread = reactor, &row_modifier)
+        def initialize(query, &row_modifier)
             @query_in_progress = false
             @query_completed = false
             @complete_result_set = false
 
             @results = []
-            @fiber = nil
 
             # This could be a view or n1ql query
             @query = query
             @row_modifier = row_modifier
-            @reactor = thread
         end
 
         def options(**opts)
@@ -32,20 +30,17 @@ module Libcouchbase
                 @results.each &blk
             else
                 perform is_complete: false
-                @fiber = Fiber.current
-
                 begin
                     while not @query_completed do
                         if @results.length > 0
                             yield @results.shift
                         else
-                            resume
+                            process_next_item
                         end
                     end
                 ensure
                     # cancel is executed on break or error
                     cancel unless @query_completed
-                    @fiber = nil
                 end
             end
             self
@@ -66,23 +61,20 @@ module Libcouchbase
                 @results.each &blk
             else
                 perform
-
-                index = 0
-                @fiber = Fiber.current
-
+                
                 begin
+                    index = 0
                     while not @query_completed do
                         if index < @results.length
                             yield @results[index]
                             index += 1
                         else
-                            resume
+                            process_next_item
                         end
                     end
                 ensure
                     # cancel is executed on break or error
                     cancel unless @query_completed
-                    @fiber = nil
                 end
             end
             self
@@ -94,11 +86,9 @@ module Libcouchbase
             else
                 perform is_complete: false, limit: 1
 
-                @fiber = Fiber.current
                 while not @query_completed do
-                    resume
+                    process_next_item
                 end
-                @fiber = nil
 
                 result = @results[0]
                 result
@@ -117,18 +107,15 @@ module Libcouchbase
                 perform is_complete: false, limit: num
 
                 index = 0
-                @fiber = Fiber.current
-
                 result = []
                 while not @query_completed do
                     if index < @results.length && index < num
                         result << @results[index]
                         index += 1
                     else
-                        resume
+                        process_next_item
                     end
                 end
-                @fiber = nil
 
                 result
             end
@@ -137,36 +124,49 @@ module Libcouchbase
         def cancel
             @cancelled = true
             @query.cancel
-            resume
+            process_next_item
         end
 
 
         protected
 
 
-        def resume
-            @reactor = reactor
+        def process_next_item(should_loop = true)
+            final, item = @queue.pop
+            
+            if final
+                if final == :error
+                    error = item
+                else
+                    @metadata = item
+                    @complete_result_set = @is_complete
+                end
+                @query_completed = true
+                @query_in_progress = false
+                raise error if error && !@cancelled
 
-            # Prevent the reactor from stopping
-            @reactor.ref
-            Fiber.yield
-            @reactor.unref
-
-            # Clear and raise the error
-            if @error
-                err = @error
-                @error = nil
-                raise err unless @cancelled
+            # Do we want to transform the results
+            elsif @row_modifier
+                @results << @row_modifier.call(item)
+            else
+                @results << item
             end
+
+            # This prevents the stack from blowing out
+            while @cancelled && !final && should_loop do
+                final = process_next_item(false)
+            end
+            final
         end
 
         def load_all
             return @results if @complete_result_set
             perform
 
-            @fiber = Fiber.current
-            while not @query_completed do; resume; end
-            @fiber = nil
+            while not @query_completed do
+                process_next_item
+            end
+
             @results
         end
 
@@ -174,35 +174,17 @@ module Libcouchbase
             return if @query_in_progress
             @query_in_progress = true
             @query_completed = false
-
-            # This flag is required to prevent race conditions
+            @is_complete = is_complete
             @cancelled = false
+
+            # This flag is required so we don't 
             @results.clear
+            @queue = Queue.new
 
             # This performs the query against the server
+            # The callback will always be on another thread
             @query.perform(**opts) { |final, item|
-                @reactor.schedule {
-                    # Has the operation completed?
-                    if final
-                        if final == :error
-                            @error = item
-                        else
-                            @metadata = item
-                            @complete_result_set = is_complete
-                        end
-                        @query_completed = true
-                        @query_in_progress = false
-
-                    # Do we want to transform the results
-                    elsif @row_modifier
-                        @results << @row_modifier.call(item)
-                    else
-                        @results << item
-                    end
-
-                    # Resume processing
-                    @fiber.resume if @fiber && (!@cancelled || final)
-                }
+                @queue.push([final, item])
             }
         end
     end

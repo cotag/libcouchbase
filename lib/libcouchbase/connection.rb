@@ -40,7 +40,7 @@ module Libcouchbase
             @bucket = bucket
 
             # Configure the event loop settings
-            @reactor = thread || ::Libuv::Reactor.default
+            @reactor = thread || ::Libuv::Reactor.current || ::Libuv::Reactor.new
             @io_opts = Ext::UVOptions.new
             @io_opts[:version] = 0
             @io_opts[:loop] = @reactor.handle
@@ -432,15 +432,8 @@ module Libcouchbase
             defer.promise
         end
 
-        DefaultViewOptions = {
-            on_error: :stop,
-            stale: false
-        }
-        def query_view(design, view, **opts, &row_modifier)
-            view = QueryView.new(self, @reactor, design, view, DefaultViewOptions.merge(opts))
-            # TODO:: Results class to be a plugin
-            # add support for naitive ruby and eventmachine
-            ResultsLibuv.new(view, &row_modifier)
+        def query_view(design, view, **opts)
+            QueryView.new(self, @reactor, design, view, opts)
         end
 
 
@@ -609,7 +602,16 @@ module Libcouchbase
                 else
                     ''
                 end
-                HttpResponse.new(cb, resp[:htstatus], headers, body, req.value)
+
+                if (200...300).include? resp[:htstatus]
+                    HttpResponse.new(cb, resp[:htstatus], headers, body, req.value)
+                else
+                    err = Error::HttpResponseError.new "non success response for #{req.key}"
+                    err.code = resp[:htstatus]
+                    err.headers = headers
+                    err.body = body
+                    req.defer.reject(err)
+                end
             end
         end
 

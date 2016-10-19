@@ -23,6 +23,8 @@ module Libcouchbase
         end
 
         def design(name)
+            name = name.to_s
+            
             des = nil
             short = nil
 
@@ -38,6 +40,7 @@ module Libcouchbase
 
             des ? DesignDoc.new(short, des, @bucket, @connection, @result) : nil
         end
+        alias_method :[], :design
 
 
         protected
@@ -61,21 +64,16 @@ module Libcouchbase
             @row[:json][:views].keys
         end
 
-        def view(name, extended: false, **opts)
+        def view(name, extended: false, **opts, &blk)
+            name = name.to_sym
             entry = @row[:json][:views][name]
             if entry
-                # TODO:: We need to detect if running on reactor etc here
-                if extended
-                    @connection.query_view(@id, name, **opts)
-                else
-                    @connection.query_view(@id, name, **opts) do |entry|
-                        entry.value
-                    end
-                end
+                @bucket.view(@id, name, **opts, &blk)
             else
                 nil
             end
         end
+        alias_method :[], :view
 
 
         protected

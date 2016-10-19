@@ -50,11 +50,10 @@ end
 describe Libcouchbase::ResultsLibuv do
     before :each do
         @log = []
+        @reactor = ::Libuv::Reactor.default
         @query = MockQuery.new(@log)
         @view = Libcouchbase::ResultsLibuv.new(@query)
         expect(@log).to eq([])
-
-        @reactor = ::Libuv::Reactor.default
     end
 
     it "should stream the response" do
