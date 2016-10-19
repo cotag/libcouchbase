@@ -1,5 +1,6 @@
-require 'set'
+# frozen_string_literal: true, encoding: ASCII-8BIT
 
+require 'set'
 
 module Libcouchbase
     class ResultsLibuv

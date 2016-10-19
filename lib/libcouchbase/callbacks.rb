@@ -1,3 +1,5 @@
+# frozen_string_literal: true, encoding: ASCII-8BIT
+
 require 'concurrent'
 require 'ffi'
 

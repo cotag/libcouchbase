@@ -1,5 +1,6 @@
-require 'set'
+# frozen_string_literal: true, encoding: ASCII-8BIT
 
+require 'set'
 
 module Libcouchbase
     class ResultsNative
@@ -153,7 +154,7 @@ module Libcouchbase
             end
 
             # This prevents the stack from blowing out
-            while @cancelled && !final && should_loop do
+            while (!@queue.empty? && should_loop) || (@cancelled && !final && should_loop) do
                 final = process_next_item(false)
             end
             final
