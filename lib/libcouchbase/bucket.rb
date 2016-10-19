@@ -30,11 +30,11 @@ module Libcouchbase
         def_delegators :@connection, :bucket, :reactor
 
 
-        def get(*keys, extended: false, **opts)
+        def get(*keys, extended: false, async: false, **opts)
             if keys.length == 1
                 result @connection.get(keys[0], **opts).then(proc { |resp|
                     extended ? resp : resp.value
-                })
+                }), async
             else
                 promises = keys.collect { |key|
                     @connection.get(key, **opts)
@@ -45,49 +45,49 @@ module Libcouchbase
                     else
                         results.collect { |resp| resp.value }
                     end
-                })
+                }), async
             end
         end
         alias_method :[], :get
 
         AddDefaults = {operation: :add}.freeze
-        def add(key, value, **opts)
-            result @connection.store(key, value, **AddDefaults.merge(opts))
+        def add(key, value, async: false, **opts)
+            result @connection.store(key, value, **AddDefaults.merge(opts)), async
         end
 
-        def set(key, value, **opts)
+        def set(key, value, async: false, **opts)
             # default operation is set
-            result @connection.store(key, value, **opts)
+            result @connection.store(key, value, **opts), async
         end
         alias_method :[]=, :set
 
         ReplaceDefaults = {operation: :replace}.freeze
-        def replace(key, value, **opts)
-            result @connection.store(key, value, **ReplaceDefaults.merge(opts))
+        def replace(key, value, async: false, **opts)
+            result @connection.store(key, value, **ReplaceDefaults.merge(opts)), async
         end
 
         AppendDefaults = {operation: :append}.freeze
-        def append(key, value, **opts)
-            result @connection.store(key, value, **AppendDefaults.merge(opts))
+        def append(key, value, async: false, **opts)
+            result @connection.store(key, value, **AppendDefaults.merge(opts)), async
         end
 
         PrependDefaults = {operation: :prepend}.freeze
-        def prepend(key, value, **opts)
-            result @connection.store(key, value, **PrependDefaults.merge(opts))
+        def prepend(key, value, async: false, **opts)
+            result @connection.store(key, value, **PrependDefaults.merge(opts)), async
         end
 
-        def incr(key, by = 1, create: false, **opts)
+        def incr(key, by = 1, create: false, async: false, **opts)
             opts[:delta] ||= by
             opts[:initial] = 0 if create
-            result @connection.counter(key, **opts)
+            result @connection.counter(key, **opts), async
         end
 
-        def delete(key, **opts)
-            result @connection.remove(key, **opts)
+        def delete(key, async: false, **opts)
+            result @connection.remove(key, **opts), async
         end
 
-        def flush
-            result @connection.flush
+        def flush(async: false)
+            result @connection.flush, async
         end
 
         def design_docs(**opts)
@@ -120,7 +120,9 @@ module Libcouchbase
         protected
 
 
-        def result(promise)
+        def result(promise, async = false)
+            return promise if async
+
             current = ::Libuv::Reactor.current
             if current && current.running?
                 co promise
