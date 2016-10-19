@@ -32,8 +32,8 @@ module Libcouchbase
             else
                 perform is_complete: false
                 begin
-                    while not @query_completed do
-                        if @results.length > 0
+                    while !@query_completed || (cont = @results.length > 0) do
+                        if cont
                             yield @results.shift
                         else
                             process_next_item
@@ -65,8 +65,8 @@ module Libcouchbase
                 
                 begin
                     index = 0
-                    while not @query_completed do
-                        if index < @results.length
+                    while !@query_completed || (cont = index < @results.length) do
+                        if cont
                             yield @results[index]
                             index += 1
                         else
@@ -109,8 +109,8 @@ module Libcouchbase
 
                 index = 0
                 result = []
-                while not @query_completed do
-                    if index < @results.length && index < num
+                while !@query_completed || (cont = index < @results.length && index < num) do
+                    if cont
                         result << @results[index]
                         index += 1
                     else

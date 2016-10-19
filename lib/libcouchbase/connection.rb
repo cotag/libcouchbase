@@ -26,7 +26,7 @@ module Libcouchbase
 
 
         Request = Struct.new(:cmd, :defer, :key, :value) do
-            # We need to hold a reference to strings so they are not GC'd
+            # We need to hold a reference to c-strings so they are not GC'd
             def ref(string)
                 @refs ||= []
                 str = FFI::MemoryPointer.from_string(string)
@@ -466,7 +466,6 @@ module Libcouchbase
             cmd[:key][:type] = :kv_copy
             str = req.ref(key)
             req.key = value
-            str.autorelease = true
             cmd[:key][:contig][:bytes] = str
             cmd[:key][:contig][:nbytes] = key.bytesize
             key
@@ -476,7 +475,6 @@ module Libcouchbase
             val = value.to_s
             cmd[:value][:vtype] = :kv_copy
             str = req.ref(val)
-            str.autorelease = true
             cmd[:value][:u_buf][:contig][:bytes] = str
             cmd[:value][:u_buf][:contig][:nbytes] = val.bytesize
         end
