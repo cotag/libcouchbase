@@ -32,7 +32,11 @@ describe Libcouchbase::Connection do
                     prom.then(proc { |success|
                         connection.get('sometestkey').then(proc {|resp|
                             @log << resp.value
+                        }, proc { |error|
+                            @log << error
                         })
+                    }, proc { |error|
+                        @log << error
                     })
                 }, proc { |error|
                     @log << error

@@ -190,10 +190,20 @@ module Libcouchbase
         end
 
         NonJsonValue = [:append, :prepend].freeze
-        SupportedFormats = [:document, :plain, :marshal].freeze
+
+        # These are client specific
+        FormatFlags = {
+            document: 0,
+            marshal: 1,
+            plain: 2
+        }
+        SupportedFormats = FormatFlags.keys.freeze
+        FormatFlags.merge!(FormatFlags.invert)
+        FormatFlags.freeze
 
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-store.html
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-durability.html
+        # NOTE:: first 2 bits of the flags are reserved for document format
         def store(key, value, 
                 defer: nil,
                 operation: :set,
@@ -204,6 +214,7 @@ module Libcouchbase
                 replicate_to: 0,
                 format: :document,
                 cas: nil,
+                flags: 0,
         **opts)
             raise 'not connected' unless @handle
             raise 'format not supported' unless SupportedFormats.include?(:document)
@@ -221,7 +232,16 @@ module Libcouchbase
             cmd[:operation] = operation
 
             # Check if we are storing a string or partial value
-            format = :plain if NonJsonValue.include?(operation)
+            if NonJsonValue.include?(operation)
+                format = :plain
+            else
+                # Preserve any application specific flags and set the format flags
+                flag_mask = flags & 3
+                flags = flags ^ flag_mask
+                cmd[:flags] = flags | FormatFlags[format]
+            end
+
+            # Move the data into the correct format for storage
             if format == :marshal
                 str_value = Marshal.dump(value)
             elsif format == :plain
@@ -251,7 +271,7 @@ module Libcouchbase
         end
 
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-get.html
-        def get(key, defer: nil, lock: false, cas: nil, format: :document, **opts)
+        def get(key, defer: nil, lock: false, cas: nil, format: nil, **opts)
             raise 'not connected' unless @handle
             defer ||= @reactor.defer
 
@@ -541,7 +561,8 @@ module Libcouchbase
             resp_callback_common(resp, :callback_get) do |req, cb|
                 val = resp[:value].read_string(resp[:nvalue])
                 
-                format = req.value
+                flag_mask = resp[:itmflags] & 3
+                format = req.value || FormatFlags[flag_mask] || :document
                 begin
                     case format
                     when :marshal
@@ -552,7 +573,7 @@ module Libcouchbase
                 rescue => e
                     format = :plain
                 end
-                Response.new(cb, req.key, resp[:cas], val, {format: format})
+                Response.new(cb, req.key, resp[:cas], val, {format: format, flags: resp[:itmflags]})
             end
         end
 
