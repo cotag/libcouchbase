@@ -185,7 +185,6 @@ module Libcouchbase
         #
         # @example Implement append to JSON encoded value
         #
-        #     c.default_format = :document
         #     c.set("foo", {"bar" => 1})
         #     c.cas("foo") do |val|
         #       val["baz"] = 2
@@ -195,13 +194,12 @@ module Libcouchbase
         #
         # @return [Libcouchbase::Response] the transaction details including the new CAS
         def compare_and_swap(key, **opts)
-            retries = opts.delete :retry
+            retries = opts.delete(:retry) || 0
             begin
-                opts.delete :cas # ensure cas isn't set (possible if a retry occurs)
-                current = result(@connection.get(key, **opts))
+                current = result(@connection.get(key))
+                new_value = yield current.value, opts
                 opts[:cas] = current.cas
 
-                new_value = yield current.value
                 set(key, new_value, **opts)
             rescue Libcouchbase::Error::KeyExists
                 retries -= 1
