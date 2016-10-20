@@ -158,5 +158,24 @@ describe Libcouchbase::Bucket do
 
             expect(@log).to eq([:callback, 2])
         end
+
+        it "should create a design document" do
+            doc = {
+                _id: "_design/blog",
+                    language: "javascript",
+                    views: {
+                    recent_posts: {
+                        map: "function(doc){if(doc.date && doc.title){emit(doc.date, doc.title);}}"
+                    }
+                }
+            }
+            @log << @bucket.save_design_doc(doc).status
+            expect(@log).to eq([201])
+        end
+
+        it "should delete a design document" do
+            @log << @bucket.delete_design_doc('_design/blog').status
+            expect(@log).to eq([200])
+        end
     end
 end

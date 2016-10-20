@@ -86,6 +86,17 @@ module Libcouchbase
             result @connection.remove(key, **opts), async
         end
 
+        # Delete contents of the bucket
+        #
+        # @see http://docs.couchbase.com/admin/admin/REST/rest-bucket-flush.html
+        #
+        # @raise [Libcouchbase::Error::HttpError] in case of an error is
+        #   encountered.
+        #
+        # @return [Libcouchbase::Response]
+        #
+        # @example Simple flush the bucket
+        #   c.flush
         def flush(async: false)
             result @connection.flush, async
         end
@@ -114,6 +125,37 @@ module Libcouchbase
             else
                 ResultsNative.new(view, &row_modifier)
             end
+        end
+
+        # http://docs.couchbase.com/admin/admin/REST/rest-ddocs-delete.html
+        def save_design_doc(data, id = nil)
+            attrs = case data
+            when String
+                JSON.parse(data, Connection::DECODE_OPTIONS)
+            when IO
+                JSON.parse(data.read, Connection::DECODE_OPTIONS)
+            when Hash
+                data
+            else
+                raise ArgumentError, "Document should be Hash, String or IO instance"
+            end
+            attrs[:language] ||= :javascript
+
+            id ||= attrs.delete(:_id)
+            id = id.sub(/^_design\//, '')
+            
+            result @connection.http("/_design/#{id}",
+                method: :put,
+                body: attrs,
+                type: :view
+            )
+        end
+
+        # http://docs.couchbase.com/admin/admin/REST/rest-ddocs-create.html
+        def delete_design_doc(id, rev = nil)
+            id = id.sub(/^_design\//, '')
+            rev = "?rev=#{rev}" if rev
+            result @connection.http("/_design/#{id}#{rev}", method: :delete, type: :view)
         end
 
         # Compare and swap value.
