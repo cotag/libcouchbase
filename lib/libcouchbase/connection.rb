@@ -4,6 +4,9 @@ require 'json'
 
 
 module Libcouchbase
+    Response = Struct.new(:callback, :key, :cas, :value, :metadata)
+    HttpResponse = Struct.new(:callback, :status, :headers, :body, :request)
+
     class Connection
         include Callbacks
         define_callback function: :bootstrap_callback, params: [:pointer, Ext::ErrorT.native_type]
@@ -34,8 +37,6 @@ module Libcouchbase
                 str
             end
         end
-        Response = Struct.new(:callback, :key, :cas, :value, :metadata)
-        HttpResponse = Struct.new(:callback, :status, :headers, :body, :request)
 
 
         def initialize(hosts: 'localhost', bucket: 'default', password: nil, thread: nil, **opts)
@@ -198,6 +199,7 @@ module Libcouchbase
                 operation: :set,
                 expire_in: nil,
                 expire_at: nil,
+                ttl: nil,
                 persist_to: 0,
                 replicate_to: 0,
                 format: :document,
@@ -236,6 +238,7 @@ module Libcouchbase
             key = cmd_set_key(req, cmd, key)
 
             cmd[:cas] = cas if cas
+            expire_in ||= ttl
             cmd[:exptime] = expire_in ? expires_in(expire_in) : expire_at.to_i
 
             @reactor.schedule {
@@ -318,7 +321,7 @@ module Libcouchbase
         end
 
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-counter.html
-        def counter(key, delta: 1, initial: nil, expire_in: nil, expire_at: nil, cas: nil, **opts)
+        def counter(key, delta: 1, initial: nil, expire_in: nil, ttl: nil, expire_at: nil, cas: nil, **opts)
             raise 'not connected' unless @handle
             defer ||= @reactor.defer
 
@@ -327,6 +330,7 @@ module Libcouchbase
             key = cmd_set_key(req, cmd, key)
 
             cmd[:cas] = cas if cas
+            expire_in ||= ttl
             cmd[:exptime] = expire_in ? expires_in(expire_in) : expire_at.to_i
             cmd[:delta] = delta
             if initial
@@ -344,7 +348,7 @@ module Libcouchbase
         end
 
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-touch.html
-        def touch(key, expire_in: nil, expire_at: nil, cas: nil, **opts)
+        def touch(key, expire_in: nil, ttl: nil, expire_at: nil, cas: nil, **opts)
             raise 'not connected' unless @handle
             raise ArgumentError.new('requires either expire_in or expire_at to be set') unless expire_in || expire_at
             defer ||= @reactor.defer
@@ -354,6 +358,7 @@ module Libcouchbase
             key = cmd_set_key(req, cmd, key)
 
             cmd[:cas] = cas if cas
+            expire_in ||= ttl
             cmd[:exptime] = expire_in ? expires_in(expire_in) : expire_at.to_i
 
             @reactor.schedule {

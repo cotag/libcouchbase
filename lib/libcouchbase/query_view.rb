@@ -67,7 +67,7 @@ module Libcouchbase
             }
             cas = row[:cas]
 
-            resp = Connection::Response.new(:viewquery_callback, key, cas)
+            resp = Response.new(:viewquery_callback, key, cas)
             resp.metadata = meta
 
             # check for included document here
