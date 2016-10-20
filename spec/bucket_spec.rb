@@ -30,6 +30,36 @@ describe Libcouchbase::Bucket do
             expect(@log).to eq(['woop woop', 'woop woop'])
         end
 
+        it "should compare and swap a value" do
+            @reactor.run { |reactor|
+                @bucket.set('somekey', 'woop woop')
+                result = @bucket.cas('somekey') do |current|
+                    @log << current
+                    "current #{current}"
+                end
+                @log << result.value
+            }
+            expect(@log).to eq(['woop woop', 'current woop woop'])
+        end
+
+        it "should retry when performing a CAS operation" do
+            @reactor.run { |reactor|
+                begin
+                    @bucket.set('somekey', 'woop woop')
+                    result = @bucket.cas('somekey', retry: 2) do |current|
+                        @log << current
+                        # This ensures the operation fails
+                        @bucket.set('somekey', 'woop woop1')
+                        "current #{current}"
+                    end
+                    @log << result.value
+                rescue Libcouchbase::Error::KeyExists
+                    @log << :error
+                end
+            }
+            expect(@log).to eq(['woop woop', 'woop woop1', 'woop woop1', :error])
+        end
+
         it "should iterate a view" do
             @reactor.run { |reactor|
                 begin
@@ -62,6 +92,49 @@ describe Libcouchbase::Bucket do
     end
 
     describe 'native ruby' do
+        it "should set a value" do
+            result = @bucket.set('somekey', 'woop woop')
+            @log << result.key
+            @log << result.value
+
+            expect(@log).to eq(['somekey', 'woop woop'])
+        end
+
+        it "should get a value" do
+            @log << @bucket.get('somekey')
+            @log << @bucket.get('somekey', extended: true).value
+
+            expect(@log).to eq(['woop woop', 'woop woop'])
+        end
+
+        it "should compare and swap a value" do
+            @bucket.set('somekey', 'woop woop')
+            result = @bucket.cas('somekey') do |current|
+                @log << current
+                "current #{current}"
+            end
+            @log << result.value
+
+            expect(@log).to eq(['woop woop', 'current woop woop'])
+        end
+
+        it "should retry when performing a CAS operation" do
+            begin
+                @bucket.set('somekey', 'woop woop')
+                result = @bucket.cas('somekey', retry: 2) do |current|
+                    @log << current
+                    # This ensures the operation fails
+                    @bucket.set('somekey', 'woop woop1')
+                    "current #{current}"
+                end
+                @log << result.value
+            rescue Libcouchbase::Error::KeyExists
+                @log << :error
+            end
+
+            expect(@log).to eq(['woop woop', 'woop woop1', 'woop woop1', :error])
+        end
+
         it "should iterate a view" do
             view = @bucket.view('zone', 'all')
             expect(view.first[:type]).to eq('zone')

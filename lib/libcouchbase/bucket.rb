@@ -116,6 +116,59 @@ module Libcouchbase
             end
         end
 
+        # Compare and swap value.
+        #
+        # Reads a key's value from the server and yields it to a block. Replaces
+        # the key's value with the result of the block as long as the key hasn't
+        # been updated in the meantime, otherwise raises
+        # {Libcouchbase::Error::KeyExists}.
+        #
+        # Setting the +:retry+ option to a positive number will cause this method
+        # to rescue the {Libcouchbase::Error::KeyExists} error that happens when
+        # an update collision is detected, and automatically get a fresh copy
+        # of the value and retry the block. This will repeat as long as there
+        # continues to be conflicts, up to the maximum number of retries specified.
+        #
+        # @param [String, Symbol] key
+        #
+        # @param [Hash] options the options for "swap" part
+        # @option options [Fixnum] :retry (0) maximum number of times to autmatically retry upon update collision
+        #
+        # @yieldparam [Object] value existing value
+        # @yieldreturn [Object] new value.
+        #
+        # @raise [Couchbase::Error::KeyExists] if the key was updated before the the
+        #   code in block has been completed (the CAS value has been changed).
+        # @raise [ArgumentError] if the block is missing
+        #
+        # @example Implement append to JSON encoded value
+        #
+        #     c.default_format = :document
+        #     c.set("foo", {"bar" => 1})
+        #     c.cas("foo") do |val|
+        #       val["baz"] = 2
+        #       val
+        #     end
+        #     c.get("foo")      #=> {"bar" => 1, "baz" => 2}
+        #
+        # @return [Libcouchbase::Response] the transaction details including the new CAS
+        def compare_and_swap(key, **opts)
+            retries = opts.delete :retry
+            begin
+                opts.delete :cas # ensure cas isn't set (possible if a retry occurs)
+                current = result(@connection.get(key, **opts))
+                opts[:cas] = current.cas
+
+                new_value = yield current.value
+                set(key, new_value, **opts)
+            rescue Libcouchbase::Error::KeyExists
+                retries -= 1
+                retry if retries >= 0
+                raise
+            end
+        end
+        alias_method :cas, :compare_and_swap
+
 
         protected
 
@@ -157,7 +210,7 @@ module Libcouchbase
 
         def connect
             if @connection.reactor.running?
-                # We don't need to start a reactor lets use the regular helper
+                # We don't need to start a reactor so we use the regular helper
                 result(@connection.connect)
             elsif Object.const_defined?(:EventMachine) && EM.reactor_thread?
                 # TODO::
