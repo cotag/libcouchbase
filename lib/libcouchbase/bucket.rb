@@ -101,15 +101,25 @@ module Libcouchbase
             result @connection.flush, async
         end
 
+        # Fetch design docs stored in current bucket
+        #
+        # @return [Libcouchbase::DesignDocs]
         def design_docs(**opts)
             DesignDocs.new(self, @connection, method(:result), **opts)
         end
+
 
         ViewDefaults = {
             on_error: :stop,
             stale: false
         }
         ViewDefaultRowModifier = proc { |entry| entry.value }
+
+        # Returns an enumerable for the results in a view.
+        #
+        # Results are lazily loaded when an operation is performed on the enum
+        #
+        # @return [Libcouchbase::Results]
         def view(design, view, extended: false, **opts, &row_modifier)
             view = @connection.query_view(design, view, **ViewDefaults.merge(opts))
 
@@ -127,7 +137,12 @@ module Libcouchbase
             end
         end
 
-        # http://docs.couchbase.com/admin/admin/REST/rest-ddocs-delete.html
+        # Update or create design doc with supplied views
+        #
+        # @see http://docs.couchbase.com/admin/admin/REST/rest-ddocs-create.html
+        #
+        # @param [Hash, IO, String] data The source object containing JSON
+        #   encoded design document.
         def save_design_doc(data, id = nil)
             attrs = case data
             when String
@@ -151,7 +166,12 @@ module Libcouchbase
             )
         end
 
-        # http://docs.couchbase.com/admin/admin/REST/rest-ddocs-create.html
+        # Delete design doc with given id and optional revision.
+        #
+        # @see http://docs.couchbase.com/admin/admin/REST/rest-ddocs-delete.html
+        #
+        # @param [String, Symbol] id ID of the design doc
+        # @param [String] rev Optional revision
         def delete_design_doc(id, rev = nil)
             id = id.sub(/^_design\//, '')
             rev = "?rev=#{rev}" if rev
@@ -185,12 +205,12 @@ module Libcouchbase
         #
         # @example Implement append to JSON encoded value
         #
-        #     c.set("foo", {"bar" => 1})
-        #     c.cas("foo") do |val|
-        #       val["baz"] = 2
+        #     c.set(:foo, {bar: 1})
+        #     c.cas(:foo) do |val|
+        #       val[:baz] = 2
         #       val
         #     end
-        #     c.get("foo")      #=> {"bar" => 1, "baz" => 2}
+        #     c.get(:foo)      #=> {bar: 1, baz: 2}
         #
         # @return [Libcouchbase::Response] the transaction details including the new CAS
         def compare_and_swap(key, **opts)

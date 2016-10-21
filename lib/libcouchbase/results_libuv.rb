@@ -3,9 +3,7 @@
 require 'set'
 
 module Libcouchbase
-    class ResultsLibuv
-        include Enumerable
-
+    class ResultsLibuv < Results
         def initialize(query, thread = reactor, &row_modifier)
             @query_in_progress = false
             @query_completed = false
@@ -25,8 +23,6 @@ module Libcouchbase
             @query.options.merge!(opts)
         end
 
-        attr_reader :complete_result_set, :query_in_progress
-        attr_reader :query_completed, :metadata
 
         def stream(&blk)
             if @complete_result_set

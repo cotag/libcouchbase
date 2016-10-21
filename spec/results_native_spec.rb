@@ -93,17 +93,28 @@ describe Libcouchbase::ResultsNative do
 
     it "should only load what is required" do
         @log << @view.take(2)
+        expect(@view.complete_result_set).to be(false)
+        expect(@view.query_in_progress).to be(false)
+        expect(@view.query_completed).to be(true)
+
         @log << @view.first
         expect(@view.complete_result_set).to be(false)
         expect(@view.query_in_progress).to be(false)
         expect(@view.query_completed).to be(true)
-        @log << @view.to_a
 
+        # Wait join here as the default loop will
+        # be started again on a new thread
+        # without this wait we might end up in a deadlock...
+        # Don't worry, the test is sound - seriously
+        @query.wait_join
+
+        @log << @view.to_a
         expect(@view.complete_result_set).to be(true)
         expect(@view.query_in_progress).to be(false)
         expect(@view.query_completed).to be(true)
 
         @query.wait_join
+        
         expect(@qlog).to eq([:new_row, :new_row, :new_row, :new_row, :new_row, :new_row])
         expect(@log).to eq([[0, 1], 0, [0, 1, 2, 3]])
     end

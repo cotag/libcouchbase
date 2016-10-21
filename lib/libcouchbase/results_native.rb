@@ -3,9 +3,7 @@
 require 'set'
 
 module Libcouchbase
-    class ResultsNative
-        include Enumerable
-
+    class ResultsNative < Results
         def initialize(query, &row_modifier)
             @query_in_progress = false
             @query_completed = false
@@ -22,9 +20,6 @@ module Libcouchbase
             reset
             @query.options.merge!(opts)
         end
-
-        attr_reader :complete_result_set, :query_in_progress
-        attr_reader :query_completed, :metadata
 
         def stream(&blk)
             if @complete_result_set
@@ -62,7 +57,7 @@ module Libcouchbase
                 @results.each &blk
             else
                 perform
-                
+
                 begin
                     index = 0
                     while !@query_completed || (cont = index < @results.length) do
@@ -123,6 +118,7 @@ module Libcouchbase
         end
 
         def cancel
+            return if @cancelled
             @cancelled = true
             @query.cancel
             process_next_item
@@ -132,7 +128,8 @@ module Libcouchbase
         protected
 
 
-        def process_next_item(should_loop = true)
+        def process_next_item(can_loop = true)
+            return if @query_completed
             final, item = @queue.pop
             
             if final
@@ -146,18 +143,25 @@ module Libcouchbase
                 @query_in_progress = false
                 raise error if error && !@cancelled
 
-            # Do we want to transform the results
-            elsif @row_modifier
-                @results << @row_modifier.call(item)
-            else
-                @results << item
+            elsif not @cancelled
+                 # Do we want to transform the results
+                if @row_modifier
+                    @results << @row_modifier.call(item)
+                else
+                    @results << item
+                end
             end
 
             # This prevents the stack from blowing out
-            while (!@queue.empty? && should_loop) || (@cancelled && !final && should_loop) do
-                final = process_next_item(false)
+            if can_loop
+                while !@queue.empty? || (@cancelled && !final) do
+                    final = process_next_item(false)
+                end
             end
             final
+        rescue Exception
+            cancel
+            raise
         end
 
         def load_all
