@@ -149,6 +149,64 @@ describe Libcouchbase::ResultsNative do
         expect(@log).to eq([4, 4])
     end
 
+    it "should handle exceptions" do
+        begin
+            @view.each {|i|
+                @log << i
+                raise 'what what'
+            }
+        rescue => e
+            @log << e.message
+        end
+
+        @query.wait_join
+
+        expect(@qlog).to eq([:new_row, :new_row, :new_row, :new_row])
+        expect(@log).to eq([0, 'what what'])
+    end
+
+    it "should handle row modifier exceptions" do
+        count = 0
+
+        @view = Libcouchbase::ResultsNative.new(@query) { |view|
+            if count == 1
+                raise 'what what'
+            end
+            count += 1
+            view
+        }
+
+        begin
+            @view.each {|i| @log << i }
+        rescue => e
+            @log << e.message
+        end
+
+        @query.wait_join
+
+        expect(@qlog).to eq([:new_row, :new_row, :new_row, :new_row])
+        expect(@log).to eq([0, 'what what'])
+    end
+
+    it "should handle row modifier exceptions on a short query" do
+        count = 0
+
+        @view = Libcouchbase::ResultsNative.new(@query) { |view|
+            raise 'what what'
+        }
+
+        begin
+            @view.first
+        rescue => e
+            @log << e.message
+        end
+
+        @query.wait_join
+
+        expect(@qlog).to eq([:new_row])
+        expect(@log).to eq(['what what'])
+    end
+
     it "should support streaming the response so results are not all stored in memory" do
         @view.stream {|i| @log << i }
 

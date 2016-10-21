@@ -38,6 +38,8 @@ module Libcouchbase
                     # cancel is executed on break or error
                     cancel unless @query_completed
                 end
+
+                raise @error if @error
             end
             self
         end
@@ -72,6 +74,8 @@ module Libcouchbase
                     # cancel is executed on break or error
                     cancel unless @query_completed
                 end
+
+                raise @error if @error
             end
             self
         end
@@ -85,6 +89,7 @@ module Libcouchbase
                 while not @query_completed do
                     process_next_item
                 end
+                raise @error if @error
 
                 result = @results[0]
                 result
@@ -113,6 +118,7 @@ module Libcouchbase
                     end
                 end
 
+                raise @error if @error
                 result
             end
         end
@@ -134,19 +140,23 @@ module Libcouchbase
             
             if final
                 if final == :error
-                    error = item
+                    @error = item unless @cancelled
                 else
                     @metadata = item
                     @complete_result_set = @is_complete
                 end
                 @query_completed = true
                 @query_in_progress = false
-                raise error if error && !@cancelled
 
             elsif not @cancelled
                  # Do we want to transform the results
                 if @row_modifier
-                    @results << @row_modifier.call(item)
+                    begin
+                        @results << @row_modifier.call(item)
+                    rescue => e
+                        @error = e
+                        @cancelled = true
+                    end
                 else
                     @results << item
                 end
@@ -158,10 +168,8 @@ module Libcouchbase
                     final = process_next_item(false)
                 end
             end
+
             final
-        rescue Exception
-            cancel
-            raise
         end
 
         def load_all
@@ -171,6 +179,7 @@ module Libcouchbase
             while not @query_completed do
                 process_next_item
             end
+            raise @error if @error
 
             @results
         end
@@ -181,6 +190,7 @@ module Libcouchbase
             @query_completed = false
             @is_complete = is_complete
             @cancelled = false
+            @error = nil
 
             # This flag is required so we don't 
             @results.clear
