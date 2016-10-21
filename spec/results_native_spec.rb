@@ -20,8 +20,7 @@ class NativeMockQuery
                 @curr = 0
                 @callback = blk
                 @limit = limit
-                
-                cancel
+                @error = nil
 
                 preloaded.times { |i| blk.call(false, i) }
                 next_item(preloaded)
@@ -36,7 +35,7 @@ class NativeMockQuery
     def next_item(i = 0)
         if i == @limit
             @sched = @thread.scheduler.in(50) do
-                @callback.call(true, {total_rows: @count})
+                @callback.call(:final, {total_rows: @count})
             end
         else
             @sched = @thread.scheduler.in(100) do
@@ -48,9 +47,14 @@ class NativeMockQuery
     end
 
     def cancel
+        return if @error
         if @sched
             @sched.cancel
             @sched = nil
+        end
+        @error = :cancelled
+        @sched = @thread.scheduler.in(50) do
+            @callback.call(:final, {total_rows: @count})
         end
     end
 end
@@ -184,7 +188,7 @@ describe Libcouchbase::ResultsNative do
 
         @query.wait_join
 
-        expect(@qlog).to eq([:new_row, :new_row, :new_row, :new_row])
+        expect(@qlog).to eq([:new_row, :new_row])
         expect(@log).to eq([0, 'what what'])
     end
 
@@ -205,6 +209,32 @@ describe Libcouchbase::ResultsNative do
 
         expect(@qlog).to eq([:new_row])
         expect(@log).to eq(['what what'])
+    end
+
+    it "should handle multiple exceptions" do
+        count = 0
+
+        @view = Libcouchbase::ResultsNative.new(@query) { |view|
+            if count == 1
+                raise 'second'
+            end
+            count += 1
+            view
+        }
+
+        begin
+            @view.each {|i|
+                @log << i
+                raise 'first'
+            }
+        rescue => e
+            @log << e.message
+        end
+
+        @query.wait_join
+
+        expect(@qlog).to eq([:new_row, :new_row])
+        expect(@log).to eq([0, 'first'])
     end
 
     it "should support streaming the response so results are not all stored in memory" do

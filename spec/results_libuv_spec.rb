@@ -18,7 +18,11 @@ class MockQuery
         @callback = blk
         @limit = limit
         
-        cancel
+        if @sched
+            @sched.cancel
+            @sched = nil
+        end
+        @error = nil
 
         preloaded.times { |i| blk.call(false, i) }
         next_item(preloaded)
@@ -27,7 +31,7 @@ class MockQuery
     def next_item(i = 0)
         if i == @limit
             @sched = reactor.scheduler.in(50) do
-                @callback.call(true, {total_rows: @count})
+                @callback.call(:final, {total_rows: @count})
             end
         else
             @sched = reactor.scheduler.in(100) do
@@ -39,9 +43,14 @@ class MockQuery
     end
 
     def cancel
+        return if @error
         if @sched
             @sched.cancel
             @sched = nil
+        end
+        @error = :cancelled
+        @sched = reactor.scheduler.in(50) do
+            @callback.call(:final, {total_rows: @count})
         end
     end
 end
@@ -121,6 +130,86 @@ describe Libcouchbase::ResultsLibuv do
         }
 
         expect(@log).to eq([:new_row, 4, 4])
+    end
+
+    it "should handle exceptions" do
+        @reactor.run { |reactor|
+            begin
+                @view.each {|i|
+                    @log << i
+                    raise 'what what'
+                }
+            rescue => e
+                @log << e.message
+            end
+        }
+
+        expect(@log).to eq([:new_row, 0, 'what what'])
+    end
+
+    it "should handle row modifier exceptions" do
+        count = 0
+
+        @view = Libcouchbase::ResultsLibuv.new(@query) { |view|
+            if count == 1
+                raise 'what what'
+            end
+            count += 1
+            view
+        }
+
+        @reactor.run { |reactor|
+            begin
+                @view.each {|i| @log << i }
+            rescue => e
+                @log << e.message
+            end
+        }
+
+        expect(@log).to eq([:new_row, 0, :new_row, 'what what'])
+    end
+
+    it "should handle row modifier exceptions on a short query" do
+        count = 0
+
+        @view = Libcouchbase::ResultsLibuv.new(@query) { |view|
+            raise 'what what'
+        }
+
+        @reactor.run { |reactor|
+            begin
+                @view.first
+            rescue => e
+                @log << e.message
+            end
+        }
+
+        expect(@log).to eq([:new_row, 'what what'])
+    end
+
+    it "should handle multiple exceptions" do
+        count = 0
+
+        @view = Libcouchbase::ResultsLibuv.new(@query) { |view|
+            if count == 1
+                raise 'second'
+            end
+            count += 1
+            view
+        }
+
+        @reactor.run { |reactor|
+            begin
+                @view.each {|i|
+                    @log << i
+                    raise 'first'
+                }
+            rescue => e
+                @log << e.message
+            end
+        }
+
+        expect(@log).to eq([:new_row, 0, 'first'])
     end
 
     it "should support streaming the response so results are not all stored in memory" do

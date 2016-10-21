@@ -141,6 +141,10 @@ module Libcouchbase
             if final
                 if final == :error
                     @error = item unless @cancelled
+                    @complete_result_set = false
+                elsif @cancelled
+                    @metadata = item
+                    @complete_result_set = false
                 else
                     @metadata = item
                     @complete_result_set = @is_complete
@@ -153,9 +157,10 @@ module Libcouchbase
                 if @row_modifier
                     begin
                         @results << @row_modifier.call(item)
-                    rescue => e
+                    rescue Exception => e
                         @error = e
                         @cancelled = true
+                        @query.cancel
                     end
                 else
                     @results << item

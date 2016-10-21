@@ -92,10 +92,13 @@ module Libcouchbase
                 perform is_complete: false, limit: 1
 
                 @fiber = Fiber.current
-                while not @query_completed do
-                    resume
+                begin
+                    while not @query_completed do
+                        resume
+                    end
+                ensure
+                    @fiber = nil
                 end
-                @fiber = nil
 
                 result = @results[0]
                 result
@@ -117,15 +120,18 @@ module Libcouchbase
                 @fiber = Fiber.current
 
                 result = []
-                while not @query_completed do
-                    if index < @results.length && index < num
-                        result << @results[index]
-                        index += 1
-                    else
-                        resume
+                begin
+                    while not @query_completed do
+                        if index < @results.length && index < num
+                            result << @results[index]
+                            index += 1
+                        else
+                            resume
+                        end
                     end
+                ensure
+                    @fiber = nil
                 end
-                @fiber = nil
 
                 result
             end
@@ -162,8 +168,11 @@ module Libcouchbase
             perform
 
             @fiber = Fiber.current
-            while not @query_completed do; resume; end
-            @fiber = nil
+            begin
+                while not @query_completed do; resume; end
+            ensure
+                @fiber = nil
+            end
             @results
         end
 
@@ -182,7 +191,11 @@ module Libcouchbase
                     # Has the operation completed?
                     if final
                         if final == :error
-                            @error = item
+                            @error = item unless @cancelled
+                            @complete_result_set = false
+                        elsif @cancelled
+                            @metadata = item
+                            @complete_result_set = false
                         else
                             @metadata = item
                             @complete_result_set = is_complete
@@ -192,7 +205,11 @@ module Libcouchbase
 
                     # Do we want to transform the results
                     elsif @row_modifier
-                        @results << @row_modifier.call(item)
+                        begin
+                            @results << @row_modifier.call(item)
+                        rescue Exception => e
+                            @error = e
+                        end
                     else
                         @results << item
                     end
