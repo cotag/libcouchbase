@@ -30,7 +30,7 @@ module Libcouchbase
         def_delegators :@connection, :bucket, :reactor
 
 
-        def get(*keys, extended: false, async: false, **opts)
+        def get(*keys, extended: false, async: false, quiet: false, **opts)
             if keys.length == 1
                 result @connection.get(keys[0], **opts).then(proc { |resp|
                     extended ? resp : resp.value
@@ -47,8 +47,14 @@ module Libcouchbase
                     end
                 }), async
             end
+        rescue Libcouchbase::Error::KeyNotFound
+            quiet ? nil : raise
         end
-        alias_method :[], :get
+
+
+        def [](key)
+            get(key, quiet: true)
+        end
 
         AddDefaults = {operation: :add}.freeze
         def add(key, value, async: false, **opts)
@@ -143,7 +149,7 @@ module Libcouchbase
         #
         # @param [Hash, IO, String] data The source object containing JSON
         #   encoded design document.
-        def save_design_doc(data, id = nil)
+        def save_design_doc(data, id = nil, async: false)
             attrs = case data
             when String
                 JSON.parse(data, Connection::DECODE_OPTIONS)
@@ -163,7 +169,7 @@ module Libcouchbase
                 method: :put,
                 body: attrs,
                 type: :view
-            )
+            ), async
         end
 
         # Delete design doc with given id and optional revision.
@@ -172,10 +178,10 @@ module Libcouchbase
         #
         # @param [String, Symbol] id ID of the design doc
         # @param [String] rev Optional revision
-        def delete_design_doc(id, rev = nil)
+        def delete_design_doc(id, rev = nil, async: false)
             id = id.sub(/^_design\//, '')
             rev = "?rev=#{rev}" if rev
-            result @connection.http("/_design/#{id}#{rev}", method: :delete, type: :view)
+            result @connection.http("/_design/#{id}#{rev}", method: :delete, type: :view), async
         end
 
         # Compare and swap value.

@@ -30,6 +30,14 @@ describe Libcouchbase::Bucket do
             expect(@log).to eq(['woop woop', 'woop woop'])
         end
 
+        it "should get a value quietly" do
+            @reactor.run { |reactor|
+                @log << @bucket.get('somekey-noexist', quiet: true)
+                @log << @bucket[:noexist2]
+            }
+            expect(@log).to eq([nil, nil])
+        end
+
         it "should compare and swap a value" do
             @reactor.run { |reactor|
                 @bucket.set('somekey', 'woop woop')
@@ -105,6 +113,13 @@ describe Libcouchbase::Bucket do
             @log << @bucket.get('somekey', extended: true).value
 
             expect(@log).to eq(['woop woop', 'woop woop'])
+        end
+
+        it "should get a value quietly" do
+            @log << @bucket.get('somekey-noexist', quiet: true)
+            @log << @bucket[:noexist2]
+
+            expect(@log).to eq([nil, nil])
         end
 
         it "should compare and swap a value" do
