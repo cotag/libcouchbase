@@ -17,9 +17,10 @@ describe Libcouchbase::Bucket do
                 result = @bucket.set('somekey', 'woop woop')
                 @log << result.key
                 @log << result.value
+                @log << @bucket.set('somekey2', 'woop woop2').value
             }
 
-            expect(@log).to eq(['somekey', 'woop woop'])
+            expect(@log).to eq(['somekey', 'woop woop', 'woop woop2'])
         end
 
         it "should get a value" do
@@ -36,6 +37,14 @@ describe Libcouchbase::Bucket do
                 @log << @bucket[:noexist2]
             }
             expect(@log).to eq([nil, nil])
+        end
+
+        it "should get multiple values" do
+            @reactor.run { |reactor|
+                @log << @bucket.get('somekey', 'somekey2')
+                @log << @bucket.get('somekey', 'somekey2', 'no-exist-sgs', quiet: true)
+            }
+            expect(@log).to eq([['woop woop', 'woop woop2'], ['woop woop', 'woop woop2', nil]])
         end
 
         it "should compare and swap a value" do
@@ -104,8 +113,9 @@ describe Libcouchbase::Bucket do
             result = @bucket.set('somekey', 'woop woop')
             @log << result.key
             @log << result.value
+            @log << @bucket.set('somekey2', 'woop woop2').value
 
-            expect(@log).to eq(['somekey', 'woop woop'])
+            expect(@log).to eq(['somekey', 'woop woop', 'woop woop2'])
         end
 
         it "should get a value" do
@@ -120,6 +130,13 @@ describe Libcouchbase::Bucket do
             @log << @bucket[:noexist2]
 
             expect(@log).to eq([nil, nil])
+        end
+
+        it "should get multiple values" do
+            @log << @bucket.get('somekey', 'somekey2')
+            @log << @bucket.get('somekey', 'somekey2', 'no-exist-sgs', quiet: true)
+
+            expect(@log).to eq([['woop woop', 'woop woop2'], ['woop woop', 'woop woop2', nil]])
         end
 
         it "should compare and swap a value" do

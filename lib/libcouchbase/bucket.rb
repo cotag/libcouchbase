@@ -39,11 +39,25 @@ module Libcouchbase
                 promises = keys.collect { |key|
                     @connection.get(key, **opts)
                 }
-                result @reactor.all(promises).then(proc { |results|
+
+                if quiet
+                    promises.map! { |prom|
+                        prom.catch { |err|
+                            if err.is_a? Libcouchbase::Error::KeyNotFound
+                                nil
+                            else
+                                ::Libuv::Q.reject(@reactor, err)
+                            end
+                        }
+                    }
+                end
+
+                result @reactor.all(*promises).then(proc { |results|
                     if extended
                         results
                     else
-                        results.collect { |resp| resp.value }
+                        # Check if resp nil as might have been a quiet request
+                        results.collect { |resp| resp.value if resp }
                     end
                 }), async
             end
