@@ -1,6 +1,16 @@
 require 'fileutils'
 require 'libuv'
 
+module FFI::Platform
+    def self.ia32?
+        ARCH == "i386"
+    end
+
+    def self.x64?
+        ARCH == "x86_64"
+    end
+end
+
 # Ensure the submodule is cloned
 file 'ext/libcouchbase/include' do
     system 'git', 'submodule', 'update', '--init'
