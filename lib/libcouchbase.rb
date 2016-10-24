@@ -1,11 +1,13 @@
 # frozen_string_literal: true, encoding: ASCII-8BIT
 
-require 'libcouchbase/ext/libcouchbase_libuv'
-require 'libcouchbase/error'
-require 'libcouchbase/callbacks'
-require 'libcouchbase/connection'
+require 'libuv'
 
 module Libcouchbase
+    require 'libcouchbase/ext/libcouchbase'
+    require 'libcouchbase/error'
+    require 'libcouchbase/callbacks'
+    require 'libcouchbase/connection'
+
     class Results
         include Enumerable
 

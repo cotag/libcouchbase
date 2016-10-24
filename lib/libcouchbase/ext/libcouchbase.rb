@@ -3,7 +3,13 @@ require 'libcouchbase/ext/libcouchbase/enums'
 
 module Libcouchbase::Ext
   extend FFI::Library
-  ffi_lib ::File.expand_path("../../../../ext/libcouchbase/build/lib/libcouchbase_libuv.#{FFI::Platform::LIBSUFFIX}", __FILE__)
+  if FFI::Platform.windows?
+    ffi_lib ::File.expand_path("../../../../ext/bin/libcouchbase.#{FFI::Platform::LIBSUFFIX}", __FILE__)
+    require 'libcouchbase/ext/libcouchbase_iocp'
+  else
+    ffi_lib ::File.expand_path("../../../../ext/libcouchbase/build/lib/libcouchbase_libuv.#{FFI::Platform::LIBSUFFIX}", __FILE__)
+    require 'libcouchbase/ext/libcouchbase_libuv'
+  end
 
   autoload :T, 'libcouchbase/ext/libcouchbase/t'
   autoload :HttpRequestT, 'libcouchbase/ext/libcouchbase/http_request_t'
@@ -61,6 +67,8 @@ module Libcouchbase::Ext
   autoload :RESPFTS, 'libcouchbase/ext/libcouchbase/respfts'
   autoload :FTSHANDLE, 'libcouchbase/ext/libcouchbase/ftshandle'
   autoload :CMDFTS, 'libcouchbase/ext/libcouchbase/cmdfts'
+
+  attach_function :create_io_ops, :lcb_create_io_ops, [:pointer, :pointer], ErrorT
 
   # (Not documented)
   #

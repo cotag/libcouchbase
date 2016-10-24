@@ -50,13 +50,23 @@ module Libcouchbase
 
             # Configure the event loop settings
             @reactor = thread || ::Libuv::Reactor.current || ::Libuv::Reactor.new
-            @io_opts = Ext::UVOptions.new
-            @io_opts[:version] = 0
-            @io_opts[:loop] = @reactor.handle
-            @io_opts[:start_stop_noop] = 1 # We want to control the start and stopping of the loop
             @io_ptr = FFI::MemoryPointer.new :pointer, 1
 
-            err = Ext.create_libuv_io_opts(0, @io_ptr, @io_opts)
+            if FFI::Platform.windows?
+                @io_opts = Ext::IOOptions.new
+                @io_opts[:version] = 0
+                @io_opts[:type] = :IO_winIOCP
+
+                err = Ext.create_io_ops(@io_ptr, @io_opts)
+            else
+                @io_opts = Ext::UVOptions.new
+                @io_opts[:version] = 0
+                @io_opts[:loop] = @reactor.handle
+                @io_opts[:start_stop_noop] = 1 # We want to control the start and stopping of the loop
+                
+                err = Ext.create_libuv_io_opts(0, @io_ptr, @io_opts)
+            end
+
             if err != :success
                 raise Error.lookup(err), 'failed to allocate IO plugin'
             end
@@ -529,6 +539,7 @@ module Libcouchbase
             @bootstrap_defer = nil
             @handle = nil
 
+            # TODO:: cleanup IO opts?
             cleanup_callbacks
 
             @requests.each_value do |req|
