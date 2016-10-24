@@ -31,6 +31,7 @@ module Libcouchbase
         def perform(**options, &blk)
             raise 'not connected' unless @connection.handle
             raise 'query already in progress' if @cmd
+            raise 'callback required' unless block_given?
 
             @reactor.schedule {
                 options = @options.merge(options)

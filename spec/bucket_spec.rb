@@ -91,6 +91,13 @@ describe Libcouchbase::Bucket do
             expect(@log).to eq([2, 2])
         end
 
+        it "should fail if a view doesn't exist" do
+            @reactor.run { |reactor|
+                view = @bucket.view('zone', 'alling')
+                expect { view.first }.to raise_error(Libcouchbase::Error::HttpError)
+            }
+        end
+
         it "should cancel the request on error" do
             @reactor.run { |reactor|
                 view = @bucket.view('zone', 'all')
@@ -174,6 +181,11 @@ describe Libcouchbase::Bucket do
             @log << view.count
 
             expect(@log).to eq([2, 2])
+        end
+
+        it "should fail if a view doesn't exist" do
+            view = @bucket.view('zone', 'alling')
+            expect { view.first }.to raise_error(Libcouchbase::Error::HttpError)
         end
 
         it "should cancel the request on error" do

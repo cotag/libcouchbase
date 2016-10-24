@@ -741,7 +741,7 @@ module Libcouchbase
                 end
             else
                 view = @requests.delete(row_data[:cookie].address)
-                view.error Error.lookup(resp[:rc]).new
+                view.error Error.lookup(row_data[:rc]).new
             end
         end
 
