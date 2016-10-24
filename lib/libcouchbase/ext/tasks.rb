@@ -29,7 +29,7 @@ if FFI::Platform.windows?
 
     file "ext/libcouchbase/build/lib/libcouchbase.#{FFI::Platform::LIBSUFFIX}" => 'ext/libcouchbase/lcb-build' do
         Dir.chdir('ext/libcouchbase/lcb-build') do |path|
-            system 'cmake', '-with-libuv', ::File.expand_path('../../', ::Libuv::Ext.path_to_internal_libuv), '-G', "Visual Studio 10#{arch}", '..\libcouchbase'
+            system 'cmake', '-with-libuv', ::File.expand_path('../../', ::Libuv::Ext.path_to_internal_libuv), '-G', "Visual Studio 10#{arch}", '..\..\libcouchbase'
             system 'cmake', '--build', '.'
         end
     end
