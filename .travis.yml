@@ -24,3 +24,5 @@ matrix:
     - rvm: jruby-head
     - rvm: ruby-head
     - rvm: rubinius
+sudo: required
+dist: trusty
