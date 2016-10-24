@@ -1,6 +1,6 @@
 
-# This file contains all the structures required to configure libcouchbase to use
-# Libuv as the primary event loop
+# This file contains the structures required to configure libcouchbase to use
+# windows IOCP for event IO
 
 module Libcouchbase::Ext
 
