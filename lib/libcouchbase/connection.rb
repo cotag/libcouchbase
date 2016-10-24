@@ -59,12 +59,12 @@ module Libcouchbase
 
                 err = Ext.create_io_ops(@io_ptr, @io_opts)
             else
-                @io_opts = Ext::UVOptions.new
+                @io_opts = Ext::Libuv::UVOptions.new
                 @io_opts[:version] = 0
                 @io_opts[:loop] = @reactor.handle
                 @io_opts[:start_stop_noop] = 1 # We want to control the start and stopping of the loop
                 
-                err = Ext.create_libuv_io_opts(0, @io_ptr, @io_opts)
+                err = Ext::Libuv.create_libuv_io_opts(0, @io_ptr, @io_opts)
             end
 
             if err != :success
