@@ -15,7 +15,8 @@ before_install:
   - gem install ffi
   - sudo wget http://packages.couchbase.com/releases/4.5.1/couchbase-server-enterprise_4.5.1-ubuntu14.04_amd64.deb
   - sudo dpkg -i couchbase-server-enterprise_4.5.1-ubuntu14.04_amd64.deb
-  - sudo service couchbase-server restart
+  - sleep 4
+  - sudo service couchbase-server status
   - /opt/couchbase/bin/couchbase-cli cluster-init -c 127.0.0.1:8091 --cluster-username=admin --cluster-password=password --cluster-ramsize=300 --cluster-index-ramsize=200 --cluster-fts-ramsize=200 --services=data,index,query,fts
 before_script:
   - rake compile
