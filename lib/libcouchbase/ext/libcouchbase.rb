@@ -675,7 +675,7 @@ module Libcouchbase::Ext
   # @return [Integer]
   # @scope class
   #
-  attach_function :get_num_replicas, :lcb_get_num_replicas, [T.by_ref], :int, :blocking => true
+  attach_function :get_num_replicas, :lcb_get_num_replicas, [T.by_ref], :int
 
   # (Not documented)
   #
@@ -684,7 +684,7 @@ module Libcouchbase::Ext
   # @return [Integer]
   # @scope class
   #
-  attach_function :get_num_nodes, :lcb_get_num_nodes, [T.by_ref], :int, :blocking => true
+  attach_function :get_num_nodes, :lcb_get_num_nodes, [T.by_ref], :int
 
   # (Not documented)
   #

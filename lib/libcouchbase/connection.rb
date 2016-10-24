@@ -199,6 +199,36 @@ module Libcouchbase
             defer.promise
         end
 
+        def get_num_replicas
+            defer = @reactor.defer
+
+            # Ensure it is thread safe
+            @reactor.schedule {
+                if @handle
+                    defer.resolve(Ext.get_num_replicas(@handle))
+                else
+                    defer.reject(RuntimeError.new('not connected'))
+                end
+            }
+
+            defer.promise
+        end
+
+        def get_num_nodes
+            defer = @reactor.defer
+
+            # Ensure it is thread safe
+            @reactor.schedule {
+                if @handle
+                    defer.resolve(Ext.get_num_nodes(@handle))
+                else
+                    defer.reject(RuntimeError.new('not connected'))
+                end
+            }
+
+            defer.promise
+        end
+
         NonJsonValue = [:append, :prepend].freeze
 
         # These are client specific

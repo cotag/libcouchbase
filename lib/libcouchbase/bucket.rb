@@ -249,6 +249,18 @@ module Libcouchbase
         end
         alias_method :cas, :compare_and_swap
 
+        # The numbers of the replicas for each node in the cluster
+        # @return [Integer]
+        def get_num_replicas
+            result @connection.get_num_replicas
+        end
+
+        # The numbers of nodes in the cluster
+        # @return [Integer]
+        def get_num_nodes
+            result @connection.get_num_nodes
+        end
+
 
         protected
 
