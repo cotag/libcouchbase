@@ -13,6 +13,7 @@ branches:
 before_install:
   - git submodule update --init --recursive
   - gem install ffi
+  - sudo apt-get install libev-dev
   - sudo wget http://packages.couchbase.com/releases/4.5.1/couchbase-server-enterprise_4.5.1-ubuntu14.04_amd64.deb
   - sudo dpkg -i couchbase-server-enterprise_4.5.1-ubuntu14.04_amd64.deb
   - sleep 4
