@@ -7,7 +7,7 @@ module Libcouchbase::Ext
     ffi_lib ::File.expand_path("../../../../ext/bin/libcouchbase.#{FFI::Platform::LIBSUFFIX}", __FILE__)
     require 'libcouchbase/ext/libcouchbase_iocp'
   else
-    ffi_lib ::File.expand_path("../../../../ext/libcouchbase/build/lib/libcouchbase_libuv.#{FFI::Platform::LIBSUFFIX}", __FILE__)
+    ffi_lib ::File.expand_path("../../../../ext/libcouchbase/build/lib/libcouchbase.#{FFI::Platform::LIBSUFFIX}", __FILE__)
     require 'libcouchbase/ext/libcouchbase_libuv'
   end
 

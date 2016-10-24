@@ -3,6 +3,7 @@
 # Libuv as the primary event loop
 
 module Libcouchbase::Ext
+    ffi_lib ::File.expand_path("../../../../ext/libcouchbase/build/lib/libcouchbase_libuv.#{FFI::Platform::LIBSUFFIX}", __FILE__)
 
     # ref: http://docs.couchbase.com/sdk-api/couchbase-c-client-2.4.8/group__lcb-libuv.html
     class UVOptions < FFI::Struct
