@@ -20,8 +20,8 @@ before_install:
   - sudo service couchbase-server status
   - /opt/couchbase/bin/couchbase-cli cluster-init -c 127.0.0.1:8091 --cluster-username=admin --cluster-password=password --cluster-ramsize=320 --cluster-index-ramsize=256 --cluster-fts-ramsize=256 --services=data,index,query,fts
   - sleep 2
-  - /opt/couchbase/bin/couchbase-cli bucket-create -c 127.0.0.1:8091 --cluster-username=admin --cluster-password=password --bucket=default --bucket-type=couchbase --bucket-ramsize=160 --bucket-replica=0 --wait
-  - /opt/couchbase/bin/couchbase-cli bucket-create -c 127.0.0.1:8091 --cluster-username=admin --cluster-password=password --bucket=test --bucket-password=password123 --bucket-type=couchbase --bucket-ramsize=160 --enable-flush=1 --bucket-replica=0 --wait
+  - /opt/couchbase/bin/couchbase-cli bucket-create -c 127.0.0.1:8091 -u=admin -p=password --bucket=default --bucket-type=couchbase --bucket-ramsize=160 --bucket-replica=0 --wait
+  - /opt/couchbase/bin/couchbase-cli bucket-create -c 127.0.0.1:8091 -u=admin -p=password --bucket=test    --bucket-type=couchbase --bucket-ramsize=160 --bucket-replica=0 --bucket-password=password123 --enable-flush=1 --wait
 before_script:
   - rake compile
 matrix:
