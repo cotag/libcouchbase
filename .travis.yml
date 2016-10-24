@@ -17,7 +17,7 @@ before_install:
   - sudo dpkg -i couchbase-server-enterprise_4.5.1-ubuntu14.04_amd64.deb
   - sleep 4
   - sudo service couchbase-server status
-  - /opt/couchbase/bin/couchbase-cli cluster-init -c 127.0.0.1:8091 --cluster-username=admin --cluster-password=password --cluster-ramsize=300 --cluster-index-ramsize=200 --cluster-fts-ramsize=200 --services=data,index,query,fts
+  - /opt/couchbase/bin/couchbase-cli cluster-init -c 127.0.0.1:8091 --cluster-username=admin --cluster-password=password --cluster-ramsize=320 --cluster-index-ramsize=256 --cluster-fts-ramsize=256 --services=data,index,query,fts
 before_script:
   - rake compile
 matrix:
