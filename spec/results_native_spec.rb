@@ -35,6 +35,7 @@ class NativeMockQuery
     def next_item(i = 0)
         if i == @limit
             @sched = @thread.scheduler.in(50) do
+                @sched = nil
                 @callback.call(:final, {total_rows: @count})
             end
         else
@@ -50,12 +51,12 @@ class NativeMockQuery
         return if @error
         if @sched
             @sched.cancel
-            @sched = nil
+            @sched = @thread.scheduler.in(50) do
+                @sched = nil
+                @callback.call(:final, {total_rows: @count})
+            end
         end
         @error = :cancelled
-        @sched = @thread.scheduler.in(50) do
-            @callback.call(:final, {total_rows: @count})
-        end
     end
 end
 

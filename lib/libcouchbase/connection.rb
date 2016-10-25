@@ -582,10 +582,10 @@ module Libcouchbase
             error_name = Ext::ErrorT[error_code]
 
             if error_code == Ext::ErrorT[:success]
-                @bootstrap_defer.resolve([error_name, error_code, self])
+                @bootstrap_defer.resolve(self)
                 @bootstrap_defer = nil
             else
-                @bootstrap_defer.reject([error_name, error_code, self])
+                @bootstrap_defer.reject(Error.lookup(error_code).new("bootstrap failed"))
                 handle_destroyed
             end
         end
