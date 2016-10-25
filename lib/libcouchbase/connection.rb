@@ -50,6 +50,7 @@ module Libcouchbase
 
             # Configure the event loop settings
             @reactor = thread || ::Libuv::Reactor.current || ::Libuv::Reactor.new
+            @reactor.on_program_interrupt { destroy }
             @io_ptr = FFI::MemoryPointer.new :pointer, 1
 
             if FFI::Platform.windows?
@@ -563,7 +564,13 @@ module Libcouchbase
             cleanup_callbacks
 
             @requests.each_value do |req|
-                req.defer.reject(Error::Sockshutdown.new('handle destroyed'))
+                err = Error::Sockshutdown.new('handle destroyed')
+                if req.is_a? Request
+                    req.defer.reject(err)
+                else
+                    # this is a view, n1ql or full text query
+                    req.error(err)
+                end
             end
             @requests = nil
         end
