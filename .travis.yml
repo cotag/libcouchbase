@@ -23,7 +23,7 @@ before_install:
   - /opt/couchbase/bin/couchbase-cli server-info   -c 127.0.0.1:8091 -u admin -p password
   - /opt/couchbase/bin/couchbase-cli bucket-create -c 127.0.0.1:8091 -u admin -p password --bucket=default --bucket-type=couchbase --bucket-ramsize=160 --bucket-replica=0 --wait
   - /opt/couchbase/bin/couchbase-cli bucket-create -c 127.0.0.1:8091 -u admin -p password --bucket=test    --bucket-type=couchbase --bucket-ramsize=160 --bucket-replica=0 --bucket-password=password123 --enable-flush=1 --wait
-  - /opt/couchbase/bin/cbrestore -b default -B default -u admin -p password ./spec/seed http://127.0.0.1:8091
+  - /opt/couchbase/bin/cbrestore -x rehash=1 -b default -B default -u admin -p password ./spec/seed http://127.0.0.1:8091
 before_script:
   - rake compile
 matrix:
