@@ -96,16 +96,6 @@ module Libcouchbase
             @reactor.schedule {
                 @flush_enabled = flush_enabled
 
-                # support a callback as well as a promise
-                if block_given?
-                    promise.then do |result|
-                        yield true, *result
-                    end
-                    promise.catch do |result|
-                        yield false, *result
-                    end
-                end
-
                 @requests = {}
 
                 # Create a library handle

@@ -13,13 +13,12 @@ describe Libcouchbase::Connection do
     it "should connect and disconnect from the default bucket" do
         @reactor.run { |reactor|
             connection = Libcouchbase::Connection.new
-            connection.connect do |success, error|
-                @log << error
-                connection.destroy
-            end
+            connection.connect.then {
+                @log << true
+            }.finally { connection.destroy }
         }
 
-        expect(@log).to eq([:success])
+        expect(@log).to eq([true])
     end
 
     it "should store a raw key on the bucket" do
