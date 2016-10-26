@@ -49,14 +49,17 @@ class NativeMockQuery
 
     def cancel
         return if @error
-        if @sched
-            @sched.cancel
-            @sched = @thread.scheduler.in(50) do
-                @sched = nil
-                @callback.call(:final, {total_rows: @count})
-            end
-        end
         @error = :cancelled
+
+        @thread.schedule {
+            if @sched
+                @sched.cancel
+                @sched = @thread.scheduler.in(50) do
+                    @sched = nil
+                    @callback.call(:final, {total_rows: @count})
+                end
+            end
+        }
     end
 end
 
