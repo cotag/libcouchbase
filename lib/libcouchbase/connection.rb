@@ -686,7 +686,7 @@ module Libcouchbase
                     end
                 end
                 body = if resp[:nbody] > 0
-                    resp[:body].read_string_length(resp[:nbody])
+                    resp[:body].read_string(resp[:nbody])
                 else
                     ''
                 end
