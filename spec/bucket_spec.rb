@@ -212,7 +212,7 @@ describe Libcouchbase::Bucket do
             expect(@log).to eq([2, 2])
         end
 
-        it "should iterate a full text search" do
+        it "should iterate a full text search", full_text_search: true do
             view = @bucket.full_text_search(:default, 'Toshiba').to_a.length
             expect(view).to eq(4)
         end

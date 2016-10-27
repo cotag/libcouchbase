@@ -8,11 +8,11 @@ require File.expand_path('../lib/libcouchbase/ext/tasks', __FILE__)    # platfor
 
 
 # By default we don't run network tests
-task :default => :spec
-#RSpec::Core::RakeTask.new(:limited_spec) do |t|
-    # Exclude network tests
-#    t.rspec_opts = "--tag ~network" 
-#end
+task :default => :limited_spec
+RSpec::Core::RakeTask.new(:limited_spec) do |t|
+    # Exclude full text search tests until we can automate index creation
+    t.rspec_opts = "--tag ~full_text_search" 
+end
 RSpec::Core::RakeTask.new(:spec)
 
 
