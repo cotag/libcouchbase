@@ -30,11 +30,66 @@ module Libcouchbase
         def_delegators :@connection, :bucket, :reactor
 
 
-        def get(*keys, extended: false, async: false, quiet: false, **opts)
+        # Obtain an object stored in Couchbase by given key.
+        #
+        # @param keys [String, Symbol, Array] One or several keys to fetch
+        # @param options [Hash] Options for operation.
+        # @option options [Integer] :lock time to lock this key for. Max time 30s
+        # @option options [true, false] :extended (false) If set to +true+, the
+        #   operation will return a +Libcouchbase::Result+, otherwise (by default)
+        #   it returns just the value.
+        # @option options [true, false] :quiet (true) If set to +true+, the
+        #  operation won't raise error for missing key, it will return +nil+.
+        #  Otherwise it will raise a not found error.
+        # @option options [Symbol] :format the value should be stored as.
+        #   Defaults to :document
+        # @option options [true, false] :assemble_hash (false) Assemble Hash for
+        #   results.
+        #
+        # @return [Object, Array, Hash, Libcouchbase::Result] the value(s)
+        #
+        # @raise [Libcouchbase::Error::KeyExists] if the key already exists on the server
+        #   with a different CAS value to that provided
+        # @raise [Libouchbase::Error::Timedout] if timeout interval for observe exceeds
+        # @raise [Libouchbase::Error::NetworkError] if there was a communication issue
+        # @raise [Libcouchbase::Error::KeyNotFound] if the key doesn't exists
+        #
+        # @example Get single value in quiet mode (the default)
+        #   c.get("foo")     #=> the associated value or nil
+        #
+        # @example Use alternative hash-like syntax
+        #   c["foo"]         #=> the associated value or nil
+        #
+        # @example Get single value in verbose mode
+        #   c.get("missing-foo", quiet: false)  #=> raises Libcouchbase::Error::NotFound
+        #
+        # @example Get multiple keys
+        #   c.get("foo", "bar", "baz")   #=> [val1, val2, val3]
+        #
+        # @example Get multiple keys with assembing result into the Hash
+        #   c.get("foo", "bar", "baz", assemble_hash: true)
+        #   #=> {"foo" => val1, "bar" => val2, "baz" => val3}
+        #
+        # @example Get and lock key using default timeout
+        #   c.get("foo", lock: true)  # This locks for the maximum time of 30 seconds
+        #
+        # @example Get and lock key using custom timeout
+        #   c.get("foo", lock: 3)
+        #
+        # @example Get and lock multiple keys using custom timeout
+        #   c.get("foo", "bar", lock: 3)
+        def get(*keys, extended: false, async: false, quiet: true, assemble_hash: false, **opts)
             if keys.length == 1
-                result @connection.get(keys[0], **opts).then(proc { |resp|
+                val = result(@connection.get(keys[0], **opts).then(proc { |resp|
                     extended ? resp : resp.value
-                }), async
+                }), async)
+                if assemble_hash
+                    hash = defined?(::HashWithIndifferentAccess) ? ::HashWithIndifferentAccess.new : {}
+                    hash[keys[0]] = val
+                    hash
+                else
+                    val
+                end
             else
                 promises = keys.collect { |key|
                     @connection.get(key, **opts)
@@ -53,48 +108,273 @@ module Libcouchbase
                 end
 
                 result @reactor.all(*promises).then(proc { |results|
-                    if extended
+                    results = if extended
                         results
                     else
                         # Check if resp nil as might have been a quiet request
                         results.collect { |resp| resp.value if resp }
                     end
+
+                    if assemble_hash
+                        hash = defined?(::HashWithIndifferentAccess) ? ::HashWithIndifferentAccess.new : {}
+                        keys.each_with_index do |key, index|
+                            hash[key] = results[index]
+                        end
+                        hash
+                    else
+                        results
+                    end
                 }), async
             end
         rescue Libcouchbase::Error::KeyNotFound
-            quiet ? nil : raise
+            if quiet
+                if assemble_hash
+                    hash = defined?(::HashWithIndifferentAccess) ? ::HashWithIndifferentAccess.new : {}
+                    hash[keys[0]] = nil
+                    hash
+                else
+                    val
+                end
+            else
+                raise
+            end
         end
+        alias_method :[], :get
 
-
-        def [](key)
-            get(key, quiet: true)
-        end
-
-        AddDefaults = {operation: :add}.freeze
+        # Add the item to the database, but fail if the object exists already
+        #
+        # @param key [String, Symbol] Key used to reference the value.
+        # @param value [Object] Value to be stored
+        # @param options [Hash] Options for operation.
+        # @option options [Integer] :ttl Expiry time for key in seconds
+        # @option options [Integer] :expire_in Expiry time for key in seconds
+        # @option options [Integer, Time] :expire_at Unix epoc or time at which a key
+        #   should expire
+        # @option options [Symbol] :format the value should be stored as.
+        # @option options [Integer] :cas The CAS value for an object. This value is
+        #   created on the server and is guaranteed to be unique for each value of
+        #   a given key. This value is used to provide simple optimistic
+        #   concurrency control when multiple clients or threads try to update an
+        #   item simultaneously.
+        # @option options [Integer] :persist_to persist to a number of nodes before returing
+        #   a result. Use -1 to persist to the maximum number of nodes
+        # @option options [Integer] :replicate_to replicate to a number of nodes before
+        #   returning a result. Use -1 to replicate to the maximum number of nodes
+        #
+        # @return [Libcouchbase::Result] this includes the CAS value of the object.
+        #
+        # @raise [Libcouchbase::Error::KeyExists] if the key already exists on the server
+        # @raise [Libouchbase::Error::Timedout] if timeout interval for observe exceeds
+        # @raise [Libouchbase::Error::NetworkError] if there was a communication issue
+        #
+        # @example Store the key which will be expired in 2 seconds using relative TTL.
+        #   c.add("foo", "bar", expire_in: 2)
+        #
+        # @example Store the key which will be expired in 2 seconds using absolute TTL.
+        #   c.add(:foo, :bar, expire_at: Time.now.to_i + 2)
+        #
+        # @example Force JSON document format for value
+        #   c.add("foo", {"bar" => "baz"}, format: :document)
+        #
+        # @example Set application specific flags (note that it will be OR-ed with format flags)
+        #   c.add("foo", "bar", flags: 0x1000)
+        #
+        # @example Ensure that the key will be persisted at least on the one node
+        #   c.add("foo", "bar", persist_to: 1)
         def add(key, value, async: false, **opts)
             result @connection.store(key, value, **AddDefaults.merge(opts)), async
         end
+        AddDefaults = {operation: :add}.freeze
 
+        # Unconditionally store the object in the Couchbase
+        #
+        # @param key [String, Symbol] Key used to reference the value.
+        # @param value [Object] Value to be stored
+        # @param options [Hash] Options for operation.
+        # @option options [Integer] :ttl Expiry time for key in seconds
+        # @option options [Integer] :expire_in Expiry time for key in seconds
+        # @option options [Integer, Time] :expire_at Unix epoc or time at which a key
+        #   should expire
+        # @option options [Symbol] :format the value should be stored as.
+        # @option options [Integer] :cas The CAS value for an object. This value is
+        #   created on the server and is guaranteed to be unique for each value of
+        #   a given key. This value is used to provide simple optimistic
+        #   concurrency control when multiple clients or threads try to update an
+        #   item simultaneously.
+        # @option options [Integer] :persist_to persist to a number of nodes before returing
+        #   a result. Use -1 to persist to the maximum number of nodes
+        # @option options [Integer] :replicate_to replicate to a number of nodes before
+        #   returning a result. Use -1 to replicate to the maximum number of nodes
+        #
+        # @return [Libcouchbase::Result] this includes the CAS value of the object.
+        #
+        # @raise [Libcouchbase::Error::KeyExists] if the key already exists on the server
+        #   with a different CAS value to that provided
+        # @raise [Libouchbase::Error::Timedout] if timeout interval for observe exceeds
+        # @raise [Libouchbase::Error::NetworkError] if there was a communication issue
+        #
+        # @example Store the key which will be expired in 2 seconds using relative TTL.
+        #   c.set("foo", "bar", expire_in: 2)
+        #
+        # @example Store the key which will be expired in 2 seconds using absolute TTL.
+        #   c.set(:foo, :bar, expire_at: Time.now.to_i + 2)
+        #
+        # @example Force JSON document format for value
+        #   c.set("foo", {"bar" => "baz"}, format: :document)
+        #
+        # @example Use hash-like syntax to store the value
+        #   c[:foo] = {bar: :baz}
+        #
+        # @example Set application specific flags (note that it will be OR-ed with format flags)
+        #   c.set("foo", "bar", flags: 0x1000)
+        #
+        # @example Perform optimistic locking by specifying last known CAS version
+        #   c.set("foo", "bar", cas: 8835713818674332672)
+        #
+        # @example Ensure that the key will be persisted at least on the one node
+        #   c.set("foo", "bar", persist_to: 1)
         def set(key, value, async: false, **opts)
             # default operation is set
             result @connection.store(key, value, **opts), async
         end
         alias_method :[]=, :set
 
-        ReplaceDefaults = {operation: :replace}.freeze
+        # Replace the existing object in the database
+        #
+        # @param key [String, Symbol] Key used to reference the value.
+        # @param value [Object] Value to be stored
+        # @param options [Hash] Options for operation.
+        # @option options [Integer] :ttl Expiry time for key in seconds
+        # @option options [Integer] :expire_in Expiry time for key in seconds
+        # @option options [Integer, Time] :expire_at Unix epoc or time at which a key
+        #   should expire
+        # @option options [Symbol] :format the value should be stored as.
+        # @option options [Integer] :cas The CAS value for an object. This value is
+        #   created on the server and is guaranteed to be unique for each value of
+        #   a given key. This value is used to provide simple optimistic
+        #   concurrency control when multiple clients or threads try to update an
+        #   item simultaneously.
+        # @option options [Integer] :persist_to persist to a number of nodes before returing
+        #   a result. Use -1 to persist to the maximum number of nodes
+        # @option options [Integer] :replicate_to replicate to a number of nodes before
+        #   returning a result. Use -1 to replicate to the maximum number of nodes
+        #
+        # @return [Libcouchbase::Result] this includes the CAS value of the object.
+        #
+        # @raise [Libcouchbase::Error::KeyExists] if the key already exists on the server
+        #   with a different CAS value to that provided
+        # @raise [Libouchbase::Error::Timedout] if timeout interval for observe exceeds
+        # @raise [Libouchbase::Error::NetworkError] if there was a communication issue
+        # @raise [Libcouchbase::Error::KeyNotFound] if the key doesn't exists
+        #
+        # @example Store the key which will be expired in 2 seconds using relative TTL.
+        #   c.replace("foo", "bar", expire_in: 2)
+        #
+        # @example Store the key which will be expired in 2 seconds using absolute TTL.
+        #   c.replace(:foo, :bar, expire_at: Time.now.to_i + 2)
+        #
+        # @example Force JSON document format for value
+        #   c.replace("foo", {"bar" => "baz"}, format: :document)
+        #
+        # @example Set application specific flags (note that it will be OR-ed with format flags)
+        #   c.replace("foo", "bar", flags: 0x1000)
+        #
+        # @example Ensure that the key will be persisted at least on the one node
+        #   c.replace("foo", "bar", persist_to: 1)
         def replace(key, value, async: false, **opts)
             result @connection.store(key, value, **ReplaceDefaults.merge(opts)), async
         end
+        ReplaceDefaults = {operation: :replace}.freeze
 
-        AppendDefaults = {operation: :append}.freeze
+        # Append this object to the existing object
+        #
+        # @note This operation is kind of data-aware from server point of view.
+        #   This mean that the server treats value as binary stream and just
+        #   perform concatenation, therefore it won't work with +:marshal+ and
+        #   +:document+ formats, because of lack of knowledge how to merge values
+        #   in these formats.
+        #
+        # @param key [String, Symbol] Key used to reference the value.
+        # @param value [Object] Value to be appended
+        # @param options [Hash] Options for operation.
+        # @option options [Integer] :cas The CAS value for an object. This value is
+        #   created on the server and is guaranteed to be unique for each value of
+        #   a given key. This value is used to provide simple optimistic
+        #   concurrency control when multiple clients or threads try to update an
+        #   item simultaneously.
+        # @option options [Integer] :persist_to persist to a number of nodes before returing
+        #   a result. Use -1 to persist to the maximum number of nodes
+        # @option options [Integer] :replicate_to replicate to a number of nodes before
+        #   returning a result. Use -1 to replicate to the maximum number of nodes
+        #
+        # @return [Libcouchbase::Result] this includes the CAS value of the object.
+        #
+        # @raise [Libcouchbase::Error::KeyExists] if the key already exists on the server
+        #   with a different CAS value to that provided
+        # @raise [Libouchbase::Error::Timedout] if timeout interval for observe exceeds
+        # @raise [Libouchbase::Error::NetworkError] if there was a communication issue
+        # @raise [Libcouchbase::Error::KeyNotFound] if the key doesn't exists
+        #
+        # @example Simple append
+        #   c.set(:foo, "aaa", format: :plain)
+        #   c.append(:foo, "bbb")
+        #   c.get("foo")           #=> "aaabbb"
+        #
+        # @example Using optimistic locking. The operation will fail on CAS mismatch
+        #   resp = c.set("foo", "aaa", format: :plain)
+        #   c.append("foo", "bbb", cas: resp.cas)
+        #
+        # @example Ensure that the key will be persisted at least on the one node
+        #   c.append("foo", "bar", persist_to: 1)
         def append(key, value, async: false, **opts)
             result @connection.store(key, value, **AppendDefaults.merge(opts)), async
         end
+        AppendDefaults = {operation: :append}.freeze
 
-        PrependDefaults = {operation: :prepend}.freeze
+        # Prepend this object to the existing object
+        #
+        # @note This operation is kind of data-aware from server point of view.
+        #   This mean that the server treats value as binary stream and just
+        #   perform concatenation, therefore it won't work with +:marshal+ and
+        #   +:document+ formats, because of lack of knowledge how to merge values
+        #   in these formats.
+        #
+        # @param key [String, Symbol] Key used to reference the value.
+        # @param value [Object] Value to be appended
+        # @param options [Hash] Options for operation.
+        # @option options [Integer] :cas The CAS value for an object. This value is
+        #   created on the server and is guaranteed to be unique for each value of
+        #   a given key. This value is used to provide simple optimistic
+        #   concurrency control when multiple clients or threads try to update an
+        #   item simultaneously.
+        # @option options [Integer] :persist_to persist to a number of nodes before returing
+        #   a result. Use -1 to persist to the maximum number of nodes
+        # @option options [Integer] :replicate_to replicate to a number of nodes before
+        #   returning a result. Use -1 to replicate to the maximum number of nodes
+        #
+        # @return [Libcouchbase::Result] this includes the CAS value of the object.
+        #
+        # @raise [Libcouchbase::Error::KeyExists] if the key already exists on the server
+        #   with a different CAS value to that provided
+        # @raise [Libouchbase::Error::Timedout] if timeout interval for observe exceeds
+        # @raise [Libouchbase::Error::NetworkError] if there was a communication issue
+        # @raise [Libcouchbase::Error::KeyNotFound] if the key doesn't exists
+        #
+        # @example Simple prepend
+        #   c.set(:foo, "aaa", format: :plain)
+        #   c.prepend(:foo, "bbb")
+        #   c.get("foo")           #=> "bbbaaa"
+        #
+        # @example Using optimistic locking. The operation will fail on CAS mismatch
+        #   resp = c.set("foo", "aaa", format: :plain)
+        #   c.prepend("foo", "bbb", cas: resp.cas)
+        #
+        # @example Ensure that the key will be persisted at least on the one node
+        #   c.prepend("foo", "bar", persist_to: 1)
         def prepend(key, value, async: false, **opts)
             result @connection.store(key, value, **PrependDefaults.merge(opts)), async
         end
+        PrependDefaults = {operation: :prepend}.freeze
 
         def incr(key, by = 1, create: false, async: false, **opts)
             opts[:delta] ||= by

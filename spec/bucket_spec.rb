@@ -47,6 +47,21 @@ describe Libcouchbase::Bucket do
             expect(@log).to eq([['woop woop', 'woop woop2'], ['woop woop', 'woop woop2', nil]])
         end
 
+        it "should get multiple values as a hash" do
+            @reactor.run { |reactor|
+                @log << @bucket.get('somekey', 'somekey2', assemble_hash: true)
+                @log << @bucket.get('somekey', 'somekey2', 'no-exist-sgs', quiet: true, assemble_hash: true)
+                @log << @bucket.get('somekey', assemble_hash: true)
+                @log << @bucket.get('no-exist-sgs', quiet: true, assemble_hash: true)
+            }
+            expect(@log).to eq([
+                {'somekey' => 'woop woop', 'somekey2' => 'woop woop2'},
+                {'somekey' => 'woop woop', 'somekey2' => 'woop woop2', 'no-exist-sgs' => nil},
+                {'somekey' => 'woop woop'},
+                {'no-exist-sgs' => nil}
+            ])
+        end
+
         it "should compare and swap a value" do
             @reactor.run { |reactor|
                 @bucket.set('somekey', 'woop woop')
@@ -144,6 +159,20 @@ describe Libcouchbase::Bucket do
             @log << @bucket.get('somekey', 'somekey2', 'no-exist-sgs', quiet: true)
 
             expect(@log).to eq([['woop woop', 'woop woop2'], ['woop woop', 'woop woop2', nil]])
+        end
+
+        it "should get multiple values as a hash" do
+            @log << @bucket.get('somekey', 'somekey2', assemble_hash: true)
+            @log << @bucket.get('somekey', 'somekey2', 'no-exist-sgs', quiet: true, assemble_hash: true)
+            @log << @bucket.get('somekey', assemble_hash: true)
+            @log << @bucket.get('no-exist-sgs', quiet: true, assemble_hash: true)
+            
+            expect(@log).to eq([
+                {'somekey' => 'woop woop', 'somekey2' => 'woop woop2'},
+                {'somekey' => 'woop woop', 'somekey2' => 'woop woop2', 'no-exist-sgs' => nil},
+                {'somekey' => 'woop woop'},
+                {'no-exist-sgs' => nil}
+            ])
         end
 
         it "should compare and swap a value" do
