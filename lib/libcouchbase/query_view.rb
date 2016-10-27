@@ -88,7 +88,7 @@ module Libcouchbase
                 if @error == :cancelled
                     @callback.call(:final, metadata)
                 else
-                    @callback.call(:error, obj)
+                    @callback.call(:error, @error)
                 end
             else
                 @callback.call(:final, metadata)

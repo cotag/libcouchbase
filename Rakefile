@@ -49,6 +49,8 @@ task :generate_bindings do
     # * Rename some structs strings to pointers
     #   create_st3.rb -> connstr, username, passwd
     #   cmdhttp.rb -> body, reqhandle, content_type, username, password, host
+    #   cmdfts.rb -> query
+    #   respfts.rb -> row
 
     FFI::Gen.generate(
         module_name: "Libcouchbase::Ext",

@@ -15,7 +15,7 @@ module Libcouchbase::Ext
   #   used for query cancellation via lcb_fts_cancel()
   class CMDFTS < FFI::Struct
     layout :cmdflags, :uint,
-           :query, :string,
+           :query, :pointer,
            :nquery, :ulong,
            :callback, :ftscallback,
            :handle, :pointer

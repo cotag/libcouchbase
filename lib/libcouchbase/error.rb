@@ -31,7 +31,8 @@ module Libcouchbase
             'nomem'  => 'no_memory',
             'noconf' => 'no_config',
             '2big'   => 'too_big',
-            '2deep'  => 'too_deep'
+            '2deep'  => 'too_deep',
+            'inval'  => 'invalid'
         }
         Ext::ErrorT.symbols.map { |val|
             # Remove the 'e' character from the start of errors and

@@ -513,6 +513,11 @@ module Libcouchbase
             QueryView.new(self, @reactor, design, view, opts)
         end
 
+        def full_text_search(index, **opts)
+            opts[:indexName] = index
+            QueryFullText.new(self, @reactor, opts)
+        end
+
 
         private
 
@@ -746,8 +751,26 @@ module Libcouchbase
         def n1ql_callback(handle, type, row)
         end
 
-        # TODO:: Full text search
+        # Full text search
+        # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-cbft-api.html
         def fts_callback(handle, type, row)
+            row_data = Ext::RESPFTS.new row
+            if row_data[:rc] == :success
+                value = JSON.parse(row_data[:row].read_string(row_data[:nrow]), DECODE_OPTIONS)
+
+                if (row_data[:rflags] & Ext::RESPFLAGS[:resp_f_final]) > 0
+                    view = @requests.delete(row_data[:cookie].address)
+
+                    # We can assume this is JSON
+                    view.received_final(value)
+                else
+                    view = @requests[row_data[:cookie].address]
+                    view.received(value)
+                end
+            else
+                view = @requests.delete(row_data[:cookie].address)
+                view.error Error.lookup(row_data[:rc]).new
+            end
         end
     end
 end

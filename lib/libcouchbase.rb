@@ -25,6 +25,7 @@ module Libcouchbase
 
     autoload :Bucket,        'libcouchbase/bucket'
     autoload :QueryView,     'libcouchbase/query_view'
+    autoload :QueryFullText, 'libcouchbase/query_full_text'
     autoload :DesignDoc,     'libcouchbase/design_docs'
     autoload :DesignDocs,    'libcouchbase/design_docs'
     autoload :ResultsLibuv,  'libcouchbase/results_libuv'

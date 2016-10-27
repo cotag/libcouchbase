@@ -518,13 +518,6 @@ module Libcouchbase
             DesignDocs.new(self, @connection, method(:result), **opts)
         end
 
-
-        ViewDefaults = {
-            on_error: :stop,
-            stale: false
-        }
-        ViewDefaultRowModifier = proc { |entry| entry.value }
-
         # Returns an enumerable for the results in a view.
         #
         # Results are lazily loaded when an operation is performed on the enum
@@ -544,6 +537,34 @@ module Libcouchbase
                 # TODO::
             else
                 ResultsNative.new(view, &row_modifier)
+            end
+        end
+        ViewDefaults = {
+            on_error: :stop,
+            stale: false
+        }
+        ViewDefaultRowModifier = proc { |entry| entry.value }
+
+        # Returns an enumerable for the results in a full text search.
+        #
+        # Results are lazily loaded when an operation is performed on the enum
+        #
+        # @return [Libcouchbase::Results]
+        def full_text_search(index, query, extended: false, **opts, &row_modifier)
+            if query.is_a? Hash
+                opts[:query] = query
+            else
+                opts[:query] = {query: query}
+            end
+            fts = @connection.full_text_search(index, **opts)
+
+            current = ::Libuv::Reactor.current
+            if current && current.running?
+                ResultsLibuv.new(fts, current, &row_modifier)
+            elsif Object.const_defined?(:EventMachine) && EM.reactor_thread?
+                # TODO::
+            else
+                ResultsNative.new(fts, &row_modifier)
             end
         end
 

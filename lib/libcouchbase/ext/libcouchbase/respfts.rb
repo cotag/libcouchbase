@@ -32,7 +32,7 @@ module Libcouchbase::Ext
            :rc, ErrorT,
            :version, :ushort,
            :rflags, :ushort,
-           :row, :string,
+           :row, :pointer,
            :nrow, :ulong,
            :htresp, RESPHTTP.by_ref
   end
