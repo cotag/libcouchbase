@@ -43,17 +43,25 @@ module Libcouchbase
             }
         end
 
+        # Example Row:
+        # {:index=>"default_3f230bec977a680e_b7ff6b68", :id=>"dep_1-18", :score=>1.3540229098345296,
+        #  :locations=>{:class_name=>{:toshiba=>[{:pos=>1, :start=>2, :end=>9, :array_positions=>nil}]},
+        #  :name=>{:toshiba=>[{:pos=>1, :start=>0, :end=>7, :array_positions=>nil}]}}}
         def received(row)
             return if @error
 
-            resp = Response.new(:fts_callback, @query)
-            resp.value = row
+            resp = Response.new(:fts_callback, row[:id])
+            resp.metadata = row
 
             @callback.call(false, resp)
         rescue => e
             @error = e
         end
 
+        # Example metadata
+        # {:status=>{:total=>2, :failed=>0, :successful=>2}, :request=>{:query=>{:query=>"Toshiba", :boost=>1},
+        #  :size=>10, :from=>0, :highlight=>nil, :fields=>nil, :facets=>nil, :explain=>false}, :hits=>[],
+        #  :total_hits=>4, :max_score=>1.6405488681166451, :took=>10182765, :facets=>{}}
         def received_final(metadata)
             @cmd = nil
 

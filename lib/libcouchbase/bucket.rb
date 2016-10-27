@@ -523,14 +523,11 @@ module Libcouchbase
         # Results are lazily loaded when an operation is performed on the enum
         #
         # @return [Libcouchbase::Results]
-        def view(design, view, extended: false, include_docs: true, is_spatial: false, **opts, &row_modifier)
+        def view(design, view, include_docs: true, is_spatial: false, **opts, &row_modifier)
             view = @connection.query_view(design, view, **ViewDefaults.merge(opts))
             view.include_docs = include_docs
             view.is_spatial = is_spatial
 
-            unless block_given? || extended
-                row_modifier = ViewDefaultRowModifier
-            end
             current = ::Libuv::Reactor.current
 
             if current && current.running?
@@ -545,20 +542,30 @@ module Libcouchbase
             on_error: :stop,
             stale: false
         }
-        ViewDefaultRowModifier = proc { |entry| entry.value }
 
         # Returns an enumerable for the results in a full text search.
         #
         # Results are lazily loaded when an operation is performed on the enum
         #
         # @return [Libcouchbase::Results]
-        def full_text_search(index, query, extended: false, **opts, &row_modifier)
+        def full_text_search(index, query, include_docs: true, **opts, &row_modifier)
             if query.is_a? Hash
                 opts[:query] = query
             else
                 opts[:query] = {query: query}
             end
             fts = @connection.full_text_search(index, **opts)
+
+            # Grab the documents from the database
+            if include_docs && !block_given?
+                row_modifier = proc { |entry|
+                    resp = get(entry.key, extended: true)
+                    entry.value = resp.value
+                    entry.cas = resp.cas
+                    entry.metadata.merge! resp.metadata
+                    entry
+                }
+            end
 
             current = ::Libuv::Reactor.current
             if current && current.running?

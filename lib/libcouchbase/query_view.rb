@@ -74,10 +74,10 @@ module Libcouchbase
             meta = {
                 emitted: emitted,
                 geometry: geometry,
-                doc_id: doc_id
+                key: key
             }
 
-            resp = Response.new(:viewquery_callback, key, cas)
+            resp = Response.new(:viewquery_callback, doc_id, cas)
             resp.metadata = meta
 
             # check for included document here
@@ -86,8 +86,6 @@ module Libcouchbase
                 raw_string = doc[:value].read_string(doc[:nvalue])
                 resp.value, meta[:format] = @connection.parse_document(raw_string, flags: doc[:itmflags])
                 meta[:flags] = doc[:itmflags]
-            else
-                resp.value = doc_id || key
             end
 
             @callback.call(false, resp)

@@ -96,7 +96,7 @@ describe Libcouchbase::Bucket do
             @reactor.run { |reactor|
                 begin
                     view = @bucket.view('zone', 'all')
-                    expect(view.first[:type]).to eq('zone')
+                    expect(view.first.value[:type]).to eq('zone')
                     @log << view.metadata[:total_rows]
                     @log << view.count
                 ensure
@@ -110,7 +110,8 @@ describe Libcouchbase::Bucket do
             @reactor.run { |reactor|
                 begin
                     view = @bucket.view('zone', 'all', include_docs: false)
-                    expect(view.first).to eq('zone_1-10')
+                    expect(view.first.key).to eq('zone_1-10')
+                    expect(view.first.value).to be(nil)
                     @log << view.metadata[:total_rows]
                     @log << view.count
                 ensure
@@ -219,7 +220,7 @@ describe Libcouchbase::Bucket do
 
         it "should iterate a view" do
             view = @bucket.view('zone', 'all')
-            expect(view.first[:type]).to eq('zone')
+            expect(view.first.value[:type]).to eq('zone')
             @log << view.metadata[:total_rows]
             @log << view.count
 
@@ -228,7 +229,8 @@ describe Libcouchbase::Bucket do
 
         it "should iterate a view without getting documents" do
             view = @bucket.view('zone', 'all', include_docs: false)
-            expect(view.first).to eq('zone_1-10')
+            expect(view.first.key).to eq('zone_1-10')
+            expect(view.first.value).to be(nil)
             @log << view.metadata[:total_rows]
             @log << view.count
 
