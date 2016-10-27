@@ -20,13 +20,15 @@ module Libcouchbase
 
             # This obtains the connections reactor
             @reactor = reactor
+            @quiet = true
 
             # clean up the connection once this object is garbage collected
             ObjectSpace.define_finalizer( self, self.class.finalize(@connection) )
         end
 
 
-        attr_reader :connection
+        attr_reader   :connection
+        attr_accessor :quiet
         def_delegators :@connection, :bucket, :reactor
 
 
@@ -38,7 +40,7 @@ module Libcouchbase
         # @option options [true, false] :extended (false) If set to +true+, the
         #   operation will return a +Libcouchbase::Result+, otherwise (by default)
         #   it returns just the value.
-        # @option options [true, false] :quiet (true) If set to +true+, the
+        # @option options [true, false] :quiet (self.quiet) If set to +true+, the
         #  operation won't raise error for missing key, it will return +nil+.
         #  Otherwise it will raise a not found error.
         # @option options [Symbol] :format the value should be stored as.
@@ -78,18 +80,35 @@ module Libcouchbase
         #
         # @example Get and lock multiple keys using custom timeout
         #   c.get("foo", "bar", lock: 3)
-        def get(*keys, extended: false, async: false, quiet: true, assemble_hash: false, **opts)
+        def get(*keys, extended: false, async: false, quiet: @quiet, assemble_hash: false, **opts)
             if keys.length == 1
-                val = result(@connection.get(keys[0], **opts).then(proc { |resp|
-                    extended ? resp : resp.value
-                }), async)
-                if assemble_hash
-                    hash = defined?(::HashWithIndifferentAccess) ? ::HashWithIndifferentAccess.new : {}
-                    hash[keys[0]] = val
-                    hash
-                else
-                    val
+                promise = @connection.get(keys[0], **opts)
+
+                if not extended
+                    promise = promise.then(proc { |resp|
+                        resp.value
+                    })
                 end
+
+                if quiet
+                    promise = promise.catch { |err|
+                        if err.is_a? Libcouchbase::Error::KeyNotFound
+                            nil
+                        else
+                            ::Libuv::Q.reject(@reactor, err)
+                        end
+                    }
+                end
+
+                if assemble_hash
+                    promise = promise.then(proc { |val|
+                        hash = defined?(::HashWithIndifferentAccess) ? ::HashWithIndifferentAccess.new : {}
+                        hash[keys[0]] = val
+                        hash
+                    })
+                end
+
+                result(promise, async)
             else
                 promises = keys.collect { |key|
                     @connection.get(key, **opts)
@@ -107,12 +126,10 @@ module Libcouchbase
                     }
                 end
 
-                result @reactor.all(*promises).then(proc { |results|
-                    results = if extended
-                        results
-                    else
+                result(@reactor.all(*promises).then(proc { |results|
+                    if not extended
                         # Check if resp nil as might have been a quiet request
-                        results.collect { |resp| resp.value if resp }
+                        results.collect! { |resp| resp.value if resp }
                     end
 
                     if assemble_hash
@@ -124,19 +141,7 @@ module Libcouchbase
                     else
                         results
                     end
-                }), async
-            end
-        rescue Libcouchbase::Error::KeyNotFound
-            if quiet
-                if assemble_hash
-                    hash = defined?(::HashWithIndifferentAccess) ? ::HashWithIndifferentAccess.new : {}
-                    hash[keys[0]] = nil
-                    hash
-                else
-                    val
-                end
-            else
-                raise
+                }), async)
             end
         end
         alias_method :[], :get
@@ -376,14 +381,119 @@ module Libcouchbase
         end
         PrependDefaults = {operation: :prepend}.freeze
 
-        def incr(key, by = 1, create: false, async: false, **opts)
+        # Increment the value of an existing numeric key
+        #
+        # The increment method allow you to increase or decrease a given stored 
+        # integer value. Updating the value of a key if it can be parsed to an integer. 
+        # The update operation occurs on the server and is provided at the protocol
+        # level. This simplifies what would otherwise be a two-stage get and set
+        # operation.
+        #
+        # @param key [String, Symbol] Key used to reference the value.
+        # @param by [Integer] Integer (up to 64 bits) value to increment or decrement
+        # @param options [Hash] Options for operation.
+        # @option options [true, false] :create (false) If set to +true+, it will
+        #   initialize the key with zero value and zero flags (use +:initial+
+        #   option to set another initial value). Note: it won't increment the
+        #   missing value.
+        # @option options [Integer] :initial (0) Integer (up to 64 bits) value for
+        #   missing key initialization. This option imply +:create+ option is +true+
+        # @option options [Integer] :ttl Expiry time for key in seconds
+        # @option options [Integer] :expire_in Expiry time for key in seconds
+        # @option options [Integer, Time] :expire_at Unix epoc or time at which a key
+        #   should expire
+        # @option options [true, false] :extended (false) If set to +true+, the
+        #   operation will return a +Libcouchbase::Result+, otherwise (by default)
+        #   it returns just the value.
+        #
+        # @return [Integer] the actual value of the key.
+        #
+        # @raise [Libouchbase::Error::Timedout] if timeout interval for observe exceeds
+        # @raise [Libouchbase::Error::NetworkError] if there was a communication issue
+        # @raise [Libcouchbase::Error::KeyNotFound] if the key doesn't exists
+        # @raise [Libcouchbase::Error::DeltaBadval] if the key contains non-numeric value
+        #
+        # @example Increment key by one
+        #   c.incr(:foo)
+        #
+        # @example Increment key by 50
+        #   c.incr("foo", 50)
+        #
+        # @example Increment key by one <b>OR</b> initialize with zero
+        #   c.incr("foo", create: true)   #=> will return old+1 or 0
+        #
+        # @example Increment key by one <b>OR</b> initialize with three
+        #   c.incr("foo", 50, initial: 3) #=> will return old+50 or 3
+        #
+        # @example Increment key and get its CAS value
+        #   resp = c.incr("foo", :extended => true)
+        #   resp.cas   #=> 12345
+        #   resp.value #=> 2
+        def incr(key, by = 1, create: false, extended: false, async: false, **opts)
             opts[:delta] ||= by
             opts[:initial] = 0 if create
-            result @connection.counter(key, **opts), async
+            promise = @connection.counter(key, **opts)
+            if not extended
+                promise = promise.then { |resp| resp.value }
+            end
+            result promise, async
         end
 
-        def delete(key, async: false, **opts)
-            result @connection.remove(key, **opts), async
+        # Decrement the value of an existing numeric key
+        #
+        # Helper method, see incr
+        def decr(key, by = 1, **opts)
+            incr(key, -by, **opts)
+        end
+
+        # Delete the specified key
+        #
+        # @param key [String, Symbol] Key used to reference the value.
+        # @param options [Hash] Options for operation.
+        # @option options [Integer] :cas The CAS value for an object. This value is
+        #   created on the server and is guaranteed to be unique for each value of
+        #   a given key. This value is used to provide simple optimistic
+        #   concurrency control when multiple clients or threads try to modify an
+        #   item simultaneously.
+        # @option options [true, false] :quiet (self.quiet) If set to +true+, the
+        #   operation won't raise error for missing key, it will return +nil+.
+        #   Otherwise it will raise error.
+        #
+        # @return [true, false] the result of the operation.
+        #
+        # @raise [Libcouchbase::Error::KeyExists] if the key already exists on the server
+        #   with a different CAS value to that provided
+        # @raise [Libouchbase::Error::Timedout] if timeout interval for observe exceeds
+        # @raise [Libouchbase::Error::NetworkError] if there was a communication issue
+        # @raise [Libcouchbase::Error::KeyNotFound] if the key doesn't exists
+        #
+        # @example Delete the key in quiet mode (default)
+        #   c.set("foo", "bar")
+        #   c.delete("foo")        #=> true
+        #   c.delete("foo")        #=> false
+        #
+        # @example Delete the key verbosely
+        #   c.set("foo", "bar")
+        #   c.delete("foo", quiet: false)   #=> true
+        #   c.delete("foo", quiet: true)    #=> nil (default behaviour)
+        #   c.delete("foo", quiet: false)   #=> will raise Libcouchbase::Error::KeyNotFound
+        #
+        # @example Delete the key with version check
+        #   res = c.set("foo", "bar")       #=> #<struct Libcouchbase::Response callback=:callback_set, key="foo", cas=1975457268957184, value="bar", metadata={:format=>:document, :flags=>0}>
+        #   c.delete("foo", cas: 123456)    #=> will raise Libcouchbase::Error::KeyExists
+        #   c.delete("foo", cas: res.cas)   #=> true
+        def delete(key, async: false, quiet: @quiet, **opts)
+            promise = @connection.remove(key, **opts).then { true }
+            if quiet
+                promise = promise.catch { |error|
+                    if error.is_a? Libcouchbase::Error::KeyNotFound
+                        false
+                    else
+                        ::Libuv::Q.reject(@reactor, error)
+                    end
+                }
+            end
+            result promise, async
         end
 
         # Delete contents of the bucket
