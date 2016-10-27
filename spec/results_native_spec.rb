@@ -14,6 +14,10 @@ class NativeMockQuery
 
     attr_accessor :preloaded
 
+    def get_count(metadata)
+        metadata[:total_rows]
+    end
+
     def perform(limit: @count, **options, &blk)
         @wait = Thread.new do
             @thread.run {

@@ -107,7 +107,7 @@ module Libcouchbase
 
         def count
             first unless @metadata
-            @metadata[:total_rows]
+            @query.get_count @metadata
         end
 
         def take(num)

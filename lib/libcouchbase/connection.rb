@@ -518,6 +518,26 @@ module Libcouchbase
             QueryFullText.new(self, @reactor, opts)
         end
 
+        def parse_document(raw_string, flags: 0, hint: nil)
+            flag_mask = flags & 3
+            format = hint || FormatFlags[flag_mask] # Defaults to document
+            val = begin
+                case format
+                when :marshal
+                    Marshal.load(raw_string)
+                when :document
+                    JSON.parse("[#{raw_string}]", DECODE_OPTIONS)[0]
+                else
+                    format = :plain
+                    raw_string
+                end
+            rescue => e
+                format = :plain
+                raw_string
+            end
+            [val, format]
+        end
+
 
         private
 
@@ -602,20 +622,8 @@ module Libcouchbase
         def callback_get(handle, type, response)
             resp = Ext::RESPGET.new response
             resp_callback_common(resp, :callback_get) do |req, cb|
-                val = resp[:value].read_string(resp[:nvalue])
-                
-                flag_mask = resp[:itmflags] & 3
-                format = req.value || FormatFlags[flag_mask] || :document
-                begin
-                    case format
-                    when :marshal
-                        val = Marshal.load(val)
-                    when :document
-                        val = JSON.parse("[#{val}]", DECODE_OPTIONS)[0]
-                    end
-                rescue => e
-                    format = :plain
-                end
+                raw_string = resp[:value].read_string(resp[:nvalue])
+                val, format = parse_document(raw_string, flags: resp[:itmflags], hint: req.value)
                 Response.new(cb, req.key, resp[:cas], val, {format: format, flags: resp[:itmflags]})
             end
         end
@@ -736,7 +744,7 @@ module Libcouchbase
                     view = @requests.delete(row_data[:cookie].address)
 
                     # We can assume this is JSON
-                    view.received_final(JSON.parse(row_data[:value], DECODE_OPTIONS))
+                    view.received_final(JSON.parse(row_data[:value].read_string(row_data[:nvalue]), DECODE_OPTIONS))
                 else
                     view = @requests[row_data[:cookie].address]
                     view.received(row_data)

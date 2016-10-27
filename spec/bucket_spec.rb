@@ -106,6 +106,20 @@ describe Libcouchbase::Bucket do
             expect(@log).to eq([2, 2])
         end
 
+        it "should iterate a view without getting documents" do
+            @reactor.run { |reactor|
+                begin
+                    view = @bucket.view('zone', 'all', include_docs: false)
+                    expect(view.first).to eq('zone_1-10')
+                    @log << view.metadata[:total_rows]
+                    @log << view.count
+                ensure
+                    @bucket = nil
+                end
+            }
+            expect(@log).to eq([2, 2])
+        end
+
         it "should fail if a view doesn't exist" do
             @reactor.run { |reactor|
                 view = @bucket.view('zone', 'alling')
@@ -206,6 +220,15 @@ describe Libcouchbase::Bucket do
         it "should iterate a view" do
             view = @bucket.view('zone', 'all')
             expect(view.first[:type]).to eq('zone')
+            @log << view.metadata[:total_rows]
+            @log << view.count
+
+            expect(@log).to eq([2, 2])
+        end
+
+        it "should iterate a view without getting documents" do
+            view = @bucket.view('zone', 'all', include_docs: false)
+            expect(view.first).to eq('zone_1-10')
             @log << view.metadata[:total_rows]
             @log << view.count
 

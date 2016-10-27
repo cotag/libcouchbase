@@ -523,8 +523,10 @@ module Libcouchbase
         # Results are lazily loaded when an operation is performed on the enum
         #
         # @return [Libcouchbase::Results]
-        def view(design, view, extended: false, **opts, &row_modifier)
+        def view(design, view, extended: false, include_docs: true, is_spatial: false, **opts, &row_modifier)
             view = @connection.query_view(design, view, **ViewDefaults.merge(opts))
+            view.include_docs = include_docs
+            view.is_spatial = is_spatial
 
             unless block_given? || extended
                 row_modifier = ViewDefaultRowModifier

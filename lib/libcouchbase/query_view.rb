@@ -28,6 +28,10 @@ module Libcouchbase
         attr_reader :options, :design, :view, :connection
         attr_accessor :include_docs, :is_spatial
 
+        def get_count(metadata)
+            metadata[:total_rows]
+        end
+
         def perform(**options, &blk)
             raise 'not connected' unless @connection.handle
             raise 'query already in progress' if @cmd
@@ -62,11 +66,16 @@ module Libcouchbase
             return if @error
 
             key = row[:key].read_string(row[:nkey])
-            meta = {
-                emitted: row[:value],
-                geometry: row[:geometry]
-            }
             cas = row[:cas]
+            emitted = row[:value].read_string(row[:nvalue]) if row[:nvalue] > 0
+            geometry = row[:geometry].read_string(row[:ngeometry]) if row[:ngeometry] > 0
+            doc_id = row[:docid].read_string(row[:ndocid]) if row[:ndocid] > 0
+
+            meta = {
+                emitted: emitted,
+                geometry: geometry,
+                doc_id: doc_id
+            }
 
             resp = Response.new(:viewquery_callback, key, cas)
             resp.metadata = meta
@@ -74,7 +83,11 @@ module Libcouchbase
             # check for included document here
             if @include_docs && row[:docresp]
                 doc = row[:docresp]
-                resp.value = JSON.parse("[#{doc[:value].read_string(doc[:nvalue])}]", Connection::DECODE_OPTIONS)[0]
+                raw_string = doc[:value].read_string(doc[:nvalue])
+                resp.value, meta[:format] = @connection.parse_document(raw_string, flags: doc[:itmflags])
+                meta[:flags] = doc[:itmflags]
+            else
+                resp.value = doc_id || key
             end
 
             @callback.call(false, resp)

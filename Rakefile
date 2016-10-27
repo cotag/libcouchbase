@@ -51,6 +51,7 @@ task :generate_bindings do
     #   cmdhttp.rb -> body, reqhandle, content_type, username, password, host
     #   cmdfts.rb -> query
     #   respfts.rb -> row
+    #   respviewquery -> value, geometry, docid
 
     FFI::Gen.generate(
         module_name: "Libcouchbase::Ext",

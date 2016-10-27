@@ -13,6 +13,10 @@ class MockQuery
 
     attr_accessor :preloaded
 
+    def get_count(metadata)
+        metadata[:total_rows]
+    end
+
     def perform(limit: @count, **options, &blk)
         @curr = 0
         @callback = blk

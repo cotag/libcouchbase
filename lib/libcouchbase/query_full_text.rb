@@ -14,6 +14,10 @@ module Libcouchbase
 
         attr_reader :options, :query, :connection
 
+        def get_count(metadata)
+            metadata[:total_hits]
+        end
+
         def perform(**options, &blk)
             raise 'not connected' unless @connection.handle
             raise 'query already in progress' if @cmd
@@ -44,7 +48,7 @@ module Libcouchbase
 
             resp = Response.new(:fts_callback, @query)
             resp.value = row
-            
+
             @callback.call(false, resp)
         rescue => e
             @error = e
@@ -52,6 +56,7 @@ module Libcouchbase
 
         def received_final(metadata)
             @cmd = nil
+
             if @error
                 if @error == :cancelled
                     @callback.call(:final, metadata)
