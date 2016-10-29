@@ -32,7 +32,7 @@ module Libcouchbase
             metadata[:total_rows]
         end
 
-        def perform(**options, &blk)
+        def perform(limit: nil, **options, &blk)
             raise 'not connected' unless @connection.handle
             raise 'query already in progress' if @cmd
             raise 'callback required' unless block_given?
@@ -41,9 +41,8 @@ module Libcouchbase
                 options = @options.merge(options)
                 # We should never exceed the users results limit
                 orig_limit = @options[:limit]
-                if orig_limit
-                    new_limit = limit || orig_limit
-                    options[:limit] = orig_limit if new_limit > orig_limit
+                if orig_limit && limit
+                    options[:limit] = limit if orig_limit > limit
                 end
                 pairs = []
 

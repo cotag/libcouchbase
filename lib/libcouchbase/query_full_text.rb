@@ -31,7 +31,7 @@ module Libcouchbase
             orig_size = @options[:size] || 10 # 10 is the couchbase default
             new_size = limit || orig_size
             begin
-                @options[:size] = orig_size >= new_size ? new_size : orig_size
+                @options[:size] = new_size if orig_size > new_size
                 @query_text = JSON.generate(@options)
                 @query_cstr = FFI::MemoryPointer.from_string(@query_text)
             rescue
@@ -86,8 +86,10 @@ module Libcouchbase
         rescue => e
             @error = e
         ensure
-            @doc_count -= 1 if @include_docs
-            process_final if @metadata && @doc_count == 0
+            if @include_docs
+                @doc_count -= 1
+                process_final if @metadata && @doc_count == 0
+            end
         end
 
         # Example metadata
