@@ -77,7 +77,6 @@ module Libcouchbase
             if @include_docs
                 @doc_count += 1
                 doc = co @connection.get(resp.key)
-                @doc_count -= 1
                 resp.value = doc.value
                 resp.cas = doc.cas
                 resp.metadata.merge! doc.metadata
@@ -86,8 +85,8 @@ module Libcouchbase
             @callback.call(false, resp)
         rescue => e
             @error = e
-            @doc_count -= 1 if @include_docs
         ensure
+            @doc_count -= 1 if @include_docs
             process_final if @metadata && @doc_count == 0
         end
 
