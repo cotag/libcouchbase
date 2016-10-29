@@ -143,6 +143,43 @@ describe Libcouchbase::Bucket do
 
             expect(@log).to eq([:callback, 2])
         end
+
+        it "should iterate a full text search with results", full_text_search: true do
+            @reactor.run { |reactor|
+                results = @bucket.full_text_search(:default, 'Toshiba')
+                @log << results.to_a.count
+                @log << results.count
+                @log << results.collect { |res| res.value.nil? }
+            }
+            expect(@log).to eq([4, 4, [false, false, false, false]])
+        end
+
+        it "should iterate a full text search without results", full_text_search: true do
+            @reactor.run { |reactor|
+                results = @bucket.full_text_search(:default, 'Toshiba', include_docs: false)
+                @log << results.to_a.count
+                @log << results.count
+                @log << results.collect { |res| res.value.nil? }
+            }
+            expect(@log).to eq([4, 4, [true, true, true, true]])
+        end
+
+        it "should cancel a full text search when an error occurs", full_text_search: true do
+            @reactor.run { |reactor|
+                results = @bucket.full_text_search(:default, 'Toshiba')
+                begin
+                    count = 0
+                    results.collect { |res|
+                        raise 'err' if count > 0
+                        @log << res.value.nil?
+                        count += 1
+                    }
+                rescue => e
+                    @log << :error
+                end
+            }
+            expect(@log).to eq([false, :error])
+        end
     end
 
     describe 'native ruby' do
@@ -237,9 +274,35 @@ describe Libcouchbase::Bucket do
             expect(@log).to eq([2, 2])
         end
 
-        it "should iterate a full text search", full_text_search: true do
-            view = @bucket.full_text_search(:default, 'Toshiba').to_a.length
-            expect(view).to eq(4)
+        it "should iterate a full text search with results", full_text_search: true do
+            results = @bucket.full_text_search(:default, 'Toshiba')
+            @log << results.to_a.count
+            @log << results.count
+            @log << results.collect { |res| res.value.nil? }
+            expect(@log).to eq([4, 4, [false, false, false, false]])
+        end
+
+        it "should iterate a full text search without results", full_text_search: true do
+            results = @bucket.full_text_search(:default, 'Toshiba', include_docs: false)
+            @log << results.to_a.count
+            @log << results.count
+            @log << results.collect { |res| res.value.nil? }
+            expect(@log).to eq([4, 4, [true, true, true, true]])
+        end
+
+        it "should cancel a full text search when an error occurs", full_text_search: true do
+            results = @bucket.full_text_search(:default, 'Toshiba')
+            begin
+                count = 0
+                results.collect { |res|
+                    raise 'err' if count > 0
+                    @log << res.value.nil?
+                    count += 1
+                }
+            rescue => e
+                @log << :error
+            end
+            expect(@log).to eq([false, :error])
         end
 
         it "should fail if a view doesn't exist" do

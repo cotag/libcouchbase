@@ -2,29 +2,49 @@
 
 module Libcouchbase
     class QueryFullText
-        def initialize(connection, reactor, **opts)
+        def initialize(connection, reactor, include_docs: true, **opts)
             @connection = connection
             @reactor = reactor
 
-            @query = opts
-            @query_text = JSON.generate(opts)
-            @query_cstr = FFI::MemoryPointer.from_string(@query_text)
+            @options = opts
+            @include_docs = include_docs
             @request_handle = FFI::MemoryPointer.new :pointer, 1
         end
 
-        attr_reader :options, :query, :connection
+        attr_reader :options, :connection
+        attr_accessor :include_docs
+
+        def index
+            @options[:indexName]
+        end
 
         def get_count(metadata)
             metadata[:total_hits]
         end
 
-        def perform(**options, &blk)
+        def perform(limit: nil, **options, &blk)
             raise 'not connected' unless @connection.handle
-            raise 'query already in progress' if @cmd
+            raise 'query already in progress' if @query_cstr
             raise 'callback required' unless block_given?
+
+            # customise the size based on the request being made
+            orig_size = @options[:size] || 10 # 10 is the couchbase default
+            new_size = limit || orig_size
+            begin
+                @options[:size] = orig_size >= new_size ? new_size : orig_size
+                @query_text = JSON.generate(@options)
+                @query_cstr = FFI::MemoryPointer.from_string(@query_text)
+            rescue
+                @query_cstr = nil
+                @query_text = nil
+                raise
+            ensure
+                @options[:size] = orig_size
+            end
 
             @reactor.schedule {
                 @error = nil
+                @doc_count = 0
                 @callback = blk
 
                 @cmd = Ext::CMDFTS.new
@@ -53,9 +73,22 @@ module Libcouchbase
             resp = Response.new(:fts_callback, row[:id])
             resp.metadata = row
 
+            # TODO:: this could cause results to be returned out of order
+            if @include_docs
+                @doc_count += 1
+                doc = co @connection.get(resp.key)
+                @doc_count -= 1
+                resp.value = doc.value
+                resp.cas = doc.cas
+                resp.metadata.merge! doc.metadata
+            end
+
             @callback.call(false, resp)
         rescue => e
             @error = e
+            @doc_count -= 1 if @include_docs
+        ensure
+            process_final if @metadata && @doc_count == 0
         end
 
         # Example metadata
@@ -63,17 +96,8 @@ module Libcouchbase
         #  :size=>10, :from=>0, :highlight=>nil, :fields=>nil, :facets=>nil, :explain=>false}, :hits=>[],
         #  :total_hits=>4, :max_score=>1.6405488681166451, :took=>10182765, :facets=>{}}
         def received_final(metadata)
-            @cmd = nil
-
-            if @error
-                if @error == :cancelled
-                    @callback.call(:final, metadata)
-                else
-                    @callback.call(:error, @error)
-                end
-            else
-                @callback.call(:final, metadata)
-            end
+            @metadata = metadata
+            process_final unless @doc_count > 0
         end
 
         def error(obj)
@@ -89,6 +113,28 @@ module Libcouchbase
                     received_final(nil)
                 end
             }
+        end
+
+
+        protected
+
+
+        def process_final
+            metadata = @metadata
+            @metadata = nil
+            @cmd = nil
+            @query_cstr = nil
+            @query_text = nil
+
+            if @error
+                if @error == :cancelled
+                    @callback.call(:final, metadata)
+                else
+                    @callback.call(:error, @error)
+                end
+            else
+                @callback.call(:final, metadata)
+            end
         end
     end
 end

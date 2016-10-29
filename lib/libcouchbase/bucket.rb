@@ -548,24 +548,13 @@ module Libcouchbase
         # Results are lazily loaded when an operation is performed on the enum
         #
         # @return [Libcouchbase::Results]
-        def full_text_search(index, query, include_docs: true, **opts, &row_modifier)
+        def full_text_search(index, query, **opts, &row_modifier)
             if query.is_a? Hash
                 opts[:query] = query
             else
                 opts[:query] = {query: query}
             end
-            fts = @connection.full_text_search(index, **opts)
-
-            # Grab the documents from the database
-            if include_docs && !block_given?
-                row_modifier = proc { |entry|
-                    resp = get(entry.key, extended: true)
-                    entry.value = resp.value
-                    entry.cas = resp.cas
-                    entry.metadata.merge! resp.metadata
-                    entry
-                }
-            end
+            fts = @connection.full_text_search(index, **FtsDefaults.merge(opts))
 
             current = ::Libuv::Reactor.current
             if current && current.running?
@@ -576,6 +565,12 @@ module Libcouchbase
                 ResultsNative.new(fts, &row_modifier)
             end
         end
+        FtsDefaults = {
+            include_docs: true,
+            size: 10000, # Max result size
+            from: 0,
+            explain: false
+        }
 
         # Update or create design doc with supplied views
         #

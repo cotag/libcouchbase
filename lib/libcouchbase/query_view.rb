@@ -39,6 +39,12 @@ module Libcouchbase
 
             @reactor.schedule {
                 options = @options.merge(options)
+                # We should never exceed the users results limit
+                orig_limit = @options[:limit]
+                if orig_limit
+                    new_limit = limit || orig_limit
+                    options[:limit] = orig_limit if new_limit > orig_limit
+                end
                 pairs = []
 
                 @options.each { |key, val| pairs << "#{key}=#{val}" }
