@@ -572,6 +572,13 @@ module Libcouchbase
             explain: false
         }
 
+        # Returns an n1ql query builder.
+        #
+        # @return [Libcouchbase::N1QL]
+        def n1ql(**options)
+            N1QL.new(self, **options)
+        end
+
         # Update or create design doc with supplied views
         #
         # @see http://docs.couchbase.com/admin/admin/REST/rest-ddocs-create.html

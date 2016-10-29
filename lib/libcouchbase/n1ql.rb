@@ -1,0 +1,61 @@
+# frozen_string_literal: true, encoding: ASCII-8BIT
+
+module Libcouchbase
+    class N1QL
+        Ordering = [:select, :insert_into, :delete_from, :update, :from, :use_keys, :unnest, :join, :where, :group_by, :order_by, :limit, :offset]
+
+        def initialize(connection, explain: false, **options)
+            @explain = !!explain
+            options.each do |key, value|
+                if self.respond_to? key
+                    self.public_send key, value
+                end
+            end
+        end
+
+        attr_accessor *Ordering
+        attr_accessor :explain
+
+        def explain(val = nil)
+            return @explain if val.nil?
+            @explain = !!val
+            self
+        end
+
+        Ordering.each do |helper|
+            define_method helper do |*args|
+                return instance_variable_get :"@#{helper}" if args.empty?
+                if args.length == 1
+                    instance_variable_set :"@#{helper}", args[0]
+                else
+                    instance_variable_set :"@#{helper}", args
+                end
+                self
+            end
+        end
+
+        def to_s
+            res = String.new
+            res << "EXPLAIN\n" if @explain
+            Ordering.each do |statement|
+                val = public_send statement
+                unless val.nil?
+                    res << "#{statement.to_s.gsub('_', ' ').upcase} "
+
+                    if val.is_a? Array
+                        res << val.collect { |obj| obj.to_s }.join(', ')
+                    else
+                        res << val.to_s
+                    end
+
+                    res << "\n"
+                end
+            end
+            res
+        end
+
+        def query
+            # TODO::
+        end
+    end
+end

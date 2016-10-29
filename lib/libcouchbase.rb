@@ -23,6 +23,7 @@ module Libcouchbase
         attr_reader :query_completed, :metadata
     end
 
+    autoload :N1QL,          'libcouchbase/n1ql'
     autoload :Bucket,        'libcouchbase/bucket'
     autoload :QueryView,     'libcouchbase/query_view'
     autoload :QueryFullText, 'libcouchbase/query_full_text'
