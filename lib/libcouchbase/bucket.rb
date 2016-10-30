@@ -694,7 +694,27 @@ module Libcouchbase
             if current && current.running?
                 co promise
             elsif Object.const_defined?(:EventMachine) && EM.reactor_thread?
-                # TODO::
+                # Assume this is being run in em-synchrony
+                f = Fiber.current
+                error = nil
+                response = nil
+
+                @connection.reactor.next_tick do
+                    begin
+                        response = co(promise)
+                    rescue => e
+                        error = e
+                    end
+
+                    EM.next_tick {
+                        f.resume
+                    }
+                end
+
+                Fiber.yield
+
+                raise error if error
+                response
             else
                 request = Mutex.new
                 result = ConditionVariable.new
@@ -727,7 +747,7 @@ module Libcouchbase
                 # We don't need to start a reactor so we use the regular helper
                 result(@connection.connect)
             elsif Object.const_defined?(:EventMachine) && EM.reactor_thread?
-                # TODO::
+                start_reactor_and_em_connect
             else
                 start_reactor_and_connect
             end
@@ -760,8 +780,28 @@ module Libcouchbase
             raise error if error
         end
 
+        # Assume this is being run in em-synchrony
         def start_reactor_and_em_connect
-            
+            f = Fiber.current
+            error = nil
+
+            Thread.new do
+                @connection.reactor.run do
+                    begin
+                        co @connection.connect
+                    rescue => e
+                        error = e
+                    end
+
+                    EM.next_tick {
+                        f.resume
+                    }
+                end
+            end
+
+            Fiber.yield
+
+            raise error if error
         end
     end
 end

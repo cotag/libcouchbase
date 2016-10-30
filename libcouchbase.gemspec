@@ -19,10 +19,11 @@ Gem::Specification.new do |gem|
     gem.add_runtime_dependency     'concurrent-ruby', '~> 1.0'
     gem.add_runtime_dependency     'libuv', '>= 3.0.1', '< 4'
 
-    gem.add_development_dependency 'rake',    '~> 11.2'
-    gem.add_development_dependency 'rspec',   '~> 3.5'
-    gem.add_development_dependency 'yard',    '~> 0.9'
-    gem.add_development_dependency 'uv-rays', '~> 2.0' # for libuv results spec
+    gem.add_development_dependency 'rake',         '~> 11.2'
+    gem.add_development_dependency 'rspec',        '~> 3.5'
+    gem.add_development_dependency 'yard',         '~> 0.9'
+    gem.add_development_dependency 'uv-rays',      '~> 2.0' # for libuv results spec
+    gem.add_development_dependency 'em-synchrony', '~> 1.0' # for eventmachine spec
 
     # https://github.com/stakach/ffi-gen
     # gem.add_development_dependency 'ffi-gen'
