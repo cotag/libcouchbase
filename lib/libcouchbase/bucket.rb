@@ -683,6 +683,13 @@ module Libcouchbase
             result @connection.get_num_nodes
         end
 
+        # Waits for all the async operations to complete and returns the results
+        #
+        # @return [Array]
+        def wait_results(*results)
+            result ::Libuv::Q.all(@reactor, *results.flatten)
+        end
+
 
         protected
 

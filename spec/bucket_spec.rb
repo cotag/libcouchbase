@@ -138,6 +138,16 @@ describe Libcouchbase::Bucket do
             ])
         end
 
+        it "should get multiple results asynchronously and then wait for the results" do
+            results = []
+            results << @bucket.get('somekey', async: true)
+            results << @bucket.get('somekey2', async: true)
+            
+            @log = @bucket.wait_results results
+
+            expect(@log).to eq(['woop woop', 'woop woop2'])
+        end
+
         it "should compare and swap a value" do
             @bucket.set('somekey', 'woop woop')
             result = @bucket.cas('somekey') do |current|
