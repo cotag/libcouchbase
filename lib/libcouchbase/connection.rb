@@ -41,7 +41,7 @@ module Libcouchbase
 
         def initialize(hosts: '127.0.0.1', bucket: 'default', password: nil, thread: nil, **opts)
             # build host string http://docs.couchbase.com/sdk-api/couchbase-c-client-2.5.6/group__lcb-init.html
-            hosts = hosts.join(',') if hosts.is_a?(Array)
+            hosts = Array(hosts).flatten.join(',')
             connstr = "couchbase://#{hosts}/#{bucket}"
             connstr = "#{connstr}?#{opts.map { |k, v| "#{k}=#{v}" }.join('&') }" unless opts.empty?
 
