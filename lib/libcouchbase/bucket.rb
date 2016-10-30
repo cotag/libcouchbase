@@ -533,7 +533,7 @@ module Libcouchbase
             if current && current.running?
                 ResultsLibuv.new(view, current, &row_modifier)
             elsif Object.const_defined?(:EventMachine) && EM.reactor_thread?
-                # TODO::
+                ResultsEM.new(view, &row_modifier)
             else
                 ResultsNative.new(view, &row_modifier)
             end
@@ -560,7 +560,7 @@ module Libcouchbase
             if current && current.running?
                 ResultsLibuv.new(fts, current, &row_modifier)
             elsif Object.const_defined?(:EventMachine) && EM.reactor_thread?
-                # TODO::
+                ResultsEM.new(fts, &row_modifier)
             else
                 ResultsNative.new(fts, &row_modifier)
             end

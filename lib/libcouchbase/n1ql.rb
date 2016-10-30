@@ -64,7 +64,7 @@ module Libcouchbase
             if current && current.running?
                 ResultsLibuv.new(n1ql_view, current, &row_modifier)
             elsif Object.const_defined?(:EventMachine) && EM.reactor_thread?
-                # TODO::
+                ResultsEM.new(n1ql_view, &row_modifier)
             else
                 ResultsNative.new(n1ql_view, &row_modifier)
             end

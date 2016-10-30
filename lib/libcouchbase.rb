@@ -30,6 +30,7 @@ module Libcouchbase
     autoload :QueryFullText, 'libcouchbase/query_full_text'
     autoload :DesignDoc,     'libcouchbase/design_docs'
     autoload :DesignDocs,    'libcouchbase/design_docs'
-    autoload :ResultsLibuv,  'libcouchbase/results_libuv'
+    autoload :ResultsEM,     'libcouchbase/results_fiber'
+    autoload :ResultsLibuv,  'libcouchbase/results_fiber'
     autoload :ResultsNative, 'libcouchbase/results_native'
 end

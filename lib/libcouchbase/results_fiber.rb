@@ -3,8 +3,8 @@
 require 'set'
 
 module Libcouchbase
-    class ResultsLibuv < Results
-        def initialize(query, thread = reactor, &row_modifier)
+    class ResultsFiber < Results
+        def initialize(query, &row_modifier)
             @query_in_progress = false
             @query_completed = false
             @complete_result_set = false
@@ -15,7 +15,6 @@ module Libcouchbase
             # This could be a view or n1ql query
             @query = query
             @row_modifier = row_modifier
-            @reactor = thread
         end
 
         def options(**opts)
@@ -147,22 +146,6 @@ module Libcouchbase
         protected
 
 
-        def resume
-            @reactor = reactor
-
-            # Prevent the reactor from stopping
-            @reactor.ref
-            Fiber.yield
-            @reactor.unref
-
-            # Clear and raise the error
-            if @error
-                err = @error
-                @error = nil
-                raise err unless @cancelled
-            end
-        end
-
         def load_all
             return @results if @complete_result_set
             perform
@@ -187,37 +170,93 @@ module Libcouchbase
 
             # This performs the query against the server
             @query.perform(**opts) { |final, item|
-                @reactor.schedule {
-                    # Has the operation completed?
-                    if final
-                        if final == :error
-                            @error = item unless @cancelled
-                            @complete_result_set = false
-                        elsif @cancelled
-                            @metadata = item
-                            @complete_result_set = false
-                        else
-                            @metadata = item
-                            @complete_result_set = is_complete
-                        end
-                        @query_completed = true
-                        @query_in_progress = false
-
-                    # Do we want to transform the results
-                    elsif @row_modifier
-                        begin
-                            @results << @row_modifier.call(item)
-                        rescue Exception => e
-                            @error = e
-                        end
-                    else
-                        @results << item
-                    end
-
-                    # Resume processing
-                    @fiber.resume if @fiber && (!@cancelled || final)
-                }
+                on_thread(is_complete, final, item)
             }
+        end
+
+        def process_response(is_complete, final, item)
+            # Has the operation completed?
+            if final
+                if final == :error
+                    @error = item unless @cancelled
+                    @complete_result_set = false
+                elsif @cancelled
+                    @metadata = item
+                    @complete_result_set = false
+                else
+                    @metadata = item
+                    @complete_result_set = is_complete
+                end
+                @query_completed = true
+                @query_in_progress = false
+
+            # Do we want to transform the results
+            elsif @row_modifier
+                begin
+                    @results << @row_modifier.call(item)
+                rescue Exception => e
+                    @error = e
+                end
+            else
+                @results << item
+            end
+
+            # Resume processing
+            @fiber.resume if @fiber && (!@cancelled || final)
+        end
+    end
+
+    class ResultsLibuv < ResultsFiber
+        def initialize(query, thread = reactor, &row_modifier)
+            super(query, &row_modifier)
+            @reactor = thread
+        end
+
+
+        protected
+
+
+        def on_thread(is_complete, final, item)
+            @reactor.schedule {
+                process_response(is_complete, final, item)
+            }
+        end
+
+        def resume
+            @reactor = reactor
+
+            # Prevent the reactor from stopping
+            @reactor.ref
+            Fiber.yield
+            @reactor.unref
+
+            # Clear and raise the error
+            if @error
+                err = @error
+                @error = nil
+                raise err unless @cancelled
+            end
+        end 
+    end
+
+    class ResultsEM < ResultsFiber
+        protected
+
+        def on_thread(is_complete, final, item)
+            EM.next_tick {
+                process_response(is_complete, final, item)
+            }
+        end
+
+        def resume
+            Fiber.yield
+
+            # Clear and raise the error
+            if @error
+                err = @error
+                @error = nil
+                raise err unless @cancelled
+            end
         end
     end
 end
