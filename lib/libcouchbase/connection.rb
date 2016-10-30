@@ -755,28 +755,31 @@ module Libcouchbase
             end
         end
 
-        # TODO::
+        # N1QL query response
+        # @see http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-n1ql-api.html
         def n1ql_callback(handle, type, row)
+            query_callback_common Ext::RESPN1QL.new(row)
         end
 
         # Full text search
-        # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-cbft-api.html
+        # @see http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-cbft-api.html
         def fts_callback(handle, type, row)
-            row_data = Ext::RESPFTS.new row
+            query_callback_common Ext::RESPFTS.new(row)
+        end
+
+        def query_callback_common(row_data)
+            view = @requests[row_data[:cookie].address]
+
             if row_data[:rc] == :success
                 value = JSON.parse(row_data[:row].read_string(row_data[:nrow]), DECODE_OPTIONS)
 
                 if (row_data[:rflags] & Ext::RESPFLAGS[:resp_f_final]) > 0
-                    view = @requests.delete(row_data[:cookie].address)
-
                     # We can assume this is JSON
                     view.received_final(value)
                 else
-                    view = @requests[row_data[:cookie].address]
                     view.received(value)
                 end
             else
-                view = @requests.delete(row_data[:cookie].address)
                 view.error Error.lookup(row_data[:rc]).new
             end
         end

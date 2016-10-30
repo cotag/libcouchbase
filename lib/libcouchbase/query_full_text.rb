@@ -102,8 +102,10 @@ module Libcouchbase
         end
 
         def error(obj)
-            @cmd = nil
-            @callback.call(:error, obj)
+            @error = obj
+            # This sets metadata to true, however it'll be ignored as error is set
+            # We set it to true as we may be fetching documents in parallel and need to wait
+            received_final(true)
         end
 
         def cancel
@@ -111,7 +113,7 @@ module Libcouchbase
             @reactor.schedule {
                 if @connection.handle && @cmd
                     Ext.fts_cancel(@connection.handle, @handle_ptr.get_pointer(0))
-                    received_final(nil)
+                    received_final(true)
                 end
             }
         end
@@ -123,9 +125,12 @@ module Libcouchbase
         def process_final
             metadata = @metadata
             @metadata = nil
-            @cmd = nil
+            
             @query_cstr = nil
             @query_text = nil
+
+            @connection.requests.delete(@cmd.to_ptr.address)
+            @cmd = nil
 
             if @error
                 if @error == :cancelled
