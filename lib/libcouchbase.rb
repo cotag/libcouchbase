@@ -14,7 +14,7 @@ module Libcouchbase
         # streams results as they are returned from the database
         #
         # unlike other operations, such as each, the results are not stored
-        # for later use and are discarded as soon as possible
+        # for later use and are discarded as soon as possible to save memory
         #
         # @yieldparam [Object] value the value of the current row
         def stream; end
@@ -26,6 +26,7 @@ module Libcouchbase
     autoload :N1QL,          'libcouchbase/n1ql'
     autoload :Bucket,        'libcouchbase/bucket'
     autoload :QueryView,     'libcouchbase/query_view'
+    autoload :QueryN1QL,     'libcouchbase/query_n1ql'
     autoload :QueryFullText, 'libcouchbase/query_full_text'
     autoload :DesignDoc,     'libcouchbase/design_docs'
     autoload :DesignDocs,    'libcouchbase/design_docs'

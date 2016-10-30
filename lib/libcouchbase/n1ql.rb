@@ -4,7 +4,9 @@ module Libcouchbase
     class N1QL
         Ordering = [:select, :insert_into, :delete_from, :update, :from, :use_keys, :unnest, :join, :where, :group_by, :order_by, :limit, :offset]
 
-        def initialize(connection, explain: false, **options)
+        def initialize(bucket, explain: false, **options)
+            @bucket = bucket
+            @connection = bucket.connection
             @explain = !!explain
             options.each do |key, value|
                 if self.respond_to? key
@@ -15,6 +17,7 @@ module Libcouchbase
 
         attr_accessor *Ordering
         attr_accessor :explain
+        attr_reader   :bucket, :connection
 
         def explain(val = nil)
             return @explain if val.nil?
@@ -54,8 +57,17 @@ module Libcouchbase
             res
         end
 
-        def query
-            # TODO::
+        def results(&row_modifier)
+            n1ql_view = @connection.n1ql_query(self)
+
+            current = ::Libuv::Reactor.current
+            if current && current.running?
+                ResultsLibuv.new(n1ql_view, current, &row_modifier)
+            elsif Object.const_defined?(:EventMachine) && EM.reactor_thread?
+                # TODO::
+            else
+                ResultsNative.new(n1ql_view, &row_modifier)
+            end
         end
     end
 end

@@ -510,12 +510,16 @@ module Libcouchbase
         end
 
         def query_view(design, view, **opts)
-            QueryView.new(self, @reactor, design, view, opts)
+            QueryView.new(self, @reactor, design, view, **opts)
         end
 
         def full_text_search(index, **opts)
             opts[:indexName] = index
-            QueryFullText.new(self, @reactor, opts)
+            QueryFullText.new(self, @reactor, **opts)
+        end
+
+        def n1ql_query(n1ql, **opts)
+            QueryN1QL.new(self, @reactor, n1ql, **opts)
         end
 
         def parse_document(raw_string, flags: 0, hint: nil)
@@ -739,18 +743,16 @@ module Libcouchbase
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-view-api.html
         def viewquery_callback(handle, type, row)
             row_data = Ext::RESPVIEWQUERY.new row
+            view = @requests[row_data[:cookie].address]
+
             if row_data[:rc] == :success
                 if (row_data[:rflags] & Ext::RESPFLAGS[:resp_f_final]) > 0
-                    view = @requests.delete(row_data[:cookie].address)
-
                     # We can assume this is JSON
                     view.received_final(JSON.parse(row_data[:value].read_string(row_data[:nvalue]), DECODE_OPTIONS))
                 else
-                    view = @requests[row_data[:cookie].address]
                     view.received(row_data)
                 end
             else
-                view = @requests.delete(row_data[:cookie].address)
                 view.error Error.lookup(row_data[:rc]).new
             end
         end
@@ -767,6 +769,7 @@ module Libcouchbase
             query_callback_common Ext::RESPFTS.new(row)
         end
 
+        # Common code to process both N1QL and FTS callbacks
         def query_callback_common(row_data)
             view = @requests[row_data[:cookie].address]
 

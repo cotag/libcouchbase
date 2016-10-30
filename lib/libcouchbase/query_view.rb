@@ -100,7 +100,9 @@ module Libcouchbase
         end
 
         def received_final(metadata)
+            @connection.requests.delete(@cmd.to_ptr.address)
             @cmd = nil
+
             if @error
                 if @error == :cancelled
                     @callback.call(:final, metadata)
@@ -113,10 +115,13 @@ module Libcouchbase
         end
 
         def error(obj)
-            @cmd = nil
-            @callback.call(:error, obj)
+            @error = obj
+            received_final(nil)
         end
 
+        # We don't ever actually cancel a request here.
+        # There is an API however it indicates that @connection.handle might be destroyed
+        # Testing also indicated that @connection.handle was destroyed with seg faults
         def cancel
             @error = :cancelled
         end

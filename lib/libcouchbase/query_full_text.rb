@@ -85,6 +85,7 @@ module Libcouchbase
             @callback.call(false, resp)
         rescue => e
             @error = e
+            cancel
         ensure
             if @include_docs
                 @doc_count -= 1
@@ -109,7 +110,7 @@ module Libcouchbase
         end
 
         def cancel
-            @error = :cancelled
+            @error = :cancelled unless @error
             @reactor.schedule {
                 if @connection.handle && @cmd
                     Ext.fts_cancel(@connection.handle, @handle_ptr.get_pointer(0))

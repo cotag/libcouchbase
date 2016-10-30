@@ -11,7 +11,7 @@ require File.expand_path('../lib/libcouchbase/ext/tasks', __FILE__)    # platfor
 task :default => :limited_spec
 RSpec::Core::RakeTask.new(:limited_spec) do |t|
     # Exclude full text search tests until we can automate index creation
-    t.rspec_opts = "--tag ~full_text_search" 
+    t.rspec_opts = "--tag ~full_text_search --tag ~n1ql_query"
 end
 RSpec::Core::RakeTask.new(:spec)
 
@@ -51,7 +51,8 @@ task :generate_bindings do
     #   cmdhttp.rb -> body, reqhandle, content_type, username, password, host
     #   cmdfts.rb -> query
     #   respfts.rb -> row
-    #   respviewquery -> value, geometry, docid
+    #   respviewquery.rb -> value, geometry, docid
+    #   respn1ql.rb -> row
 
     FFI::Gen.generate(
         module_name: "Libcouchbase::Ext",
