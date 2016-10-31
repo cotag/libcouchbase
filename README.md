@@ -105,15 +105,10 @@ The library supports three different formats for representing values:
 * `:marshal` Use this format if you'd like to transparently serialize your
   ruby object with standard `Marshal.dump` and `Marshal.load` methods
 
-The library supports both synchronous and asynchronous mode. In
-asynchronous mode all operations will return control to caller
-without blocking current thread. You can collect references to these
-async operations and then wait for the results on the current thread
-or the results can be processed in a callback.
-
 ```ruby
 bucket.put(:some_object, my_object, format: :marshal)
 ```
+
 
 The library supports both synchronous and asynchronous operations.
 In asynchronous mode all operations will return control to caller
@@ -133,10 +128,10 @@ bucket.wait_results(results)          #=> ['key1_val', 'key2_val']
 # Is equivalent to:
 bucket.get(:key1, :key2)              #=> ['key1_val', 'key2_val']
 
-# Process result without waiting / blocking the thread at all
+# Process result without waiting or blocking the thread at all
 # This will execute on the couchbase reactor loop so it is
-# recommended not to block, spin up a new thread or schedule the
-# work to occur next_tick etc
+# recommended not to block in the callback - spin up a new thread
+# or schedule the work to occur next_tick etc
 promise = bucket.get(:key1, async: true)
 promise.then  { |result| puts result }
 promise.catch { |error|  puts error  }
