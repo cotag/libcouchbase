@@ -511,6 +511,11 @@ module Libcouchbase
             result @connection.flush, async
         end
 
+        # Touch a key, changing its CAS and optionally setting a timeout
+        def touch(async: false, **opts)
+            result @connection.touch(**opts), async
+        end
+
         # Fetch design docs stored in current bucket
         #
         # @return [Libcouchbase::DesignDocs]
