@@ -1,4 +1,4 @@
-Copyright (c) 2004-2013 Cotag Media
+Copyright (c) 2016 ACAProjects
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -20,5 +20,5 @@ THE SOFTWARE.
 
 ===
 
-This license applies to all parts of uvrb (Ruby FFI bindings for libuv only)
-Libuv itself [is using Node license](https://github.com/joyent/libuv/blob/master/LICENSE)
+This license applies to all parts of the libcouchbase gem (Ruby FFI bindings for libcouchbase only)
+Libcouchbase itself [is using the Couchbase license](https://github.com/couchbase/libcouchbase/blob/master/LICENSE)
