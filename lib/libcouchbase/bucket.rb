@@ -81,10 +81,12 @@ module Libcouchbase
         # @example Get and lock multiple keys using custom timeout
         #   c.get("foo", "bar", lock: 3)
         def get(*keys, extended: false, async: false, quiet: @quiet, assemble_hash: false, **opts)
+            keys = keys.flatten
+
             if keys.length == 1
                 promise = @connection.get(keys[0], **opts)
 
-                if not extended
+                unless extended
                     promise = promise.then(proc { |resp|
                         resp.value
                     })
@@ -604,8 +606,8 @@ module Libcouchbase
             attrs[:language] ||= :javascript
 
             id ||= attrs.delete(:_id)
-            id = id.sub(/^_design\//, '')
-            
+            id = id.to_s.sub(/^_design\//, '')
+
             result @connection.http("/_design/#{id}",
                 method: :put,
                 body: attrs,
