@@ -622,7 +622,7 @@ module Libcouchbase
         # @param [String, Symbol] id ID of the design doc
         # @param [String] rev Optional revision
         def delete_design_doc(id, rev = nil, async: false)
-            id = id.sub(/^_design\//, '')
+            id = id.to_s.sub(/^_design\//, '')
             rev = "?rev=#{rev}" if rev
             result @connection.http("/_design/#{id}#{rev}", method: :delete, type: :view), async
         end
