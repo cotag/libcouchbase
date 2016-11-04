@@ -46,6 +46,7 @@ module Libcouchbase
         protected
 
 
+        # This is a proxy to the Bucket#result method
         def result(promise)
             @result.call(promise)
         end
@@ -75,10 +76,15 @@ module Libcouchbase
         end
         alias_method :[], :view
 
+        def view_config
+            @row[:json][:views]
+        end
+
 
         protected
 
 
+        # This is a proxy to the Bucket#result method
         def result(promise)
             @result.call(promise)
         end

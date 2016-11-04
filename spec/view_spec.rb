@@ -54,8 +54,8 @@ describe Libcouchbase::QueryView do
         it "should create a design document" do
             doc = {
                 _id: "_design/blog",
-                    language: "javascript",
-                    views: {
+                language: "javascript",
+                views: {
                     recent_posts: {
                         map: "function(doc){if(doc.date && doc.title){emit(doc.date, doc.title);}}"
                     }

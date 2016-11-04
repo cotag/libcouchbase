@@ -20,4 +20,12 @@ describe Libcouchbase::DesignDocs do
         views = @ddoc[:user].views
         expect(views).to eq([:is_sys_admin])
     end
+
+    it "should provide access to view configuration" do
+        config = @ddoc.design("user").view_config
+        expect(config.keys).to eq([:is_sys_admin])
+
+        config = @ddoc[:user].view_config
+        expect(config.keys).to eq([:is_sys_admin])
+    end
 end
