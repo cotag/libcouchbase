@@ -54,7 +54,7 @@ module Libcouchbase
 
                 @callback = blk
                 @cmd = Ext::CMDVIEWQUERY.new
-                Ext.view_query_initcmd(@cmd, @design, @view, opts, @connection.get_callback(:viewquery_callback))
+                Ext.view_query_initcmd(@cmd, @design.to_s, @view.to_s, opts, @connection.get_callback(:viewquery_callback))
                 @cmd[:cmdflags] |= F_INCLUDE_DOCS if include_docs
                 @cmd[:cmdflags] |= F_SPATIAL if is_spatial
 
