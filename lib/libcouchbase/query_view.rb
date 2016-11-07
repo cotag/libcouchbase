@@ -37,22 +37,28 @@ module Libcouchbase
             raise 'query already in progress' if @cmd
             raise 'callback required' unless block_given?
 
-            @reactor.schedule {
-                options = @options.merge(options)
-                # We should never exceed the users results limit
-                orig_limit = @options[:limit]
-                limit = options[:limit]
-                if orig_limit && limit
-                    options[:limit] = orig_limit if limit > orig_limit
+            options = @options.merge(options)
+            # We should never exceed the users results limit
+            orig_limit = @options[:limit]
+            limit = options[:limit]
+            if orig_limit && limit
+                options[:limit] = orig_limit if limit > orig_limit
+            end
+
+            pairs = []
+            options.each { |key, val|
+                if key.to_s.include? 'key'
+                    pairs << "#{key}=#{[val].to_json[1...-1]}"
+                else
+                    pairs << "#{key}=#{val}"
                 end
-                pairs = []
+            }
+            opts = pairs.join('&')
 
-                @options.each { |key, val| pairs << "#{key}=#{val}" }
-                opts = pairs.join('&')
-
+            @reactor.schedule {
                 @error = nil
-
                 @callback = blk
+
                 @cmd = Ext::CMDVIEWQUERY.new
                 Ext.view_query_initcmd(@cmd, @design.to_s, @view.to_s, opts, @connection.get_callback(:viewquery_callback))
                 @cmd[:cmdflags] |= F_INCLUDE_DOCS if include_docs
