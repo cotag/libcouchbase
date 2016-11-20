@@ -11,7 +11,10 @@ module Libcouchbase
         # Finalizer done right
         # http://www.mikeperham.com/2010/02/24/the-trouble-with-ruby-finalizers/
         def self.finalize(connection)
-            proc { connection.destroy }
+            proc {
+                connection.destroy
+                @connection.reactor.unref
+            }
         end
 
         def initialize(**options)
@@ -776,6 +779,7 @@ module Libcouchbase
             connecting.synchronize {
                 Thread.new do
                     @connection.reactor.run do
+                        @connection.reactor.ref
                         begin
                             co @connection.connect
                         rescue => e
@@ -801,6 +805,7 @@ module Libcouchbase
 
             Thread.new do
                 @connection.reactor.run do
+                    @connection.reactor.ref
                     begin
                         co @connection.connect
                     rescue => e
