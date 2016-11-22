@@ -753,7 +753,13 @@ module Libcouchbase
                     view.received(row_data)
                 end
             else
-                view.error Error.lookup(row_data[:rc]).new
+                error_klass = Error.lookup(row_data[:rc])
+                if error_klass == Error::HttpError
+                    http_resp = row_data[:htresp]
+                    view.error error_klass.new(http_resp[:body].read_string(http_resp[:nbody]))
+                else
+                    view.error error_klass.new
+                end
             end
         end
 
@@ -783,7 +789,13 @@ module Libcouchbase
                     view.received(value)
                 end
             else
-                view.error Error.lookup(row_data[:rc]).new
+                error_klass = Error.lookup(row_data[:rc])
+                if error_klass == Error::HttpError
+                    http_resp = row_data[:htresp]
+                    view.error error_klass.new(http_resp[:body].read_string(http_resp[:nbody]))
+                else
+                    view.error error_klass.new
+                end
             end
         end
     end
