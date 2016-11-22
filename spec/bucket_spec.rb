@@ -11,6 +11,12 @@ describe Libcouchbase::Bucket do
         @log = []
     end
 
+    after :each do
+        @bucket = nil
+        @reactor = nil
+        @log = nil
+    end
+
     describe 'reactor loop' do
         it "should set a value" do
             @reactor.run { |reactor|

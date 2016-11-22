@@ -10,6 +10,11 @@ describe Libcouchbase::Connection do
         @reactor = ::Libuv::Reactor.default
     end
 
+    after :each do
+        @reactor = nil
+        @log = nil
+    end
+
     it "should connect and disconnect from the default bucket" do
         @reactor.run { |reactor|
             connection = Libcouchbase::Connection.new

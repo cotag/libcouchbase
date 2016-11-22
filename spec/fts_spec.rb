@@ -11,6 +11,12 @@ describe Libcouchbase::QueryFullText, full_text_search: true do
         @log = []
     end
 
+    after :each do
+        @bucket = nil
+        @reactor = nil
+        @log = nil
+    end
+
     describe 'perform native queries' do
         it "should iterate a full text search with results" do
             results = @bucket.full_text_search(:default, 'Toshiba')

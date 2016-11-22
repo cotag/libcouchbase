@@ -11,6 +11,12 @@ describe Libcouchbase::QueryView do
         @log = []
     end
 
+    after :each do
+        @bucket = nil
+        @reactor = nil
+        @log = nil
+    end
+
     describe 'perform native queries' do
         it "should iterate a view" do
             view = @bucket.view('zone', 'all')

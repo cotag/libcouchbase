@@ -10,6 +10,11 @@ describe Libcouchbase::N1QL, n1ql_query: true do
         @log = []
     end
 
+    after :each do
+        @bucket = nil
+        @log = nil
+    end
+
     it "should build a basic query" do
         @n1ql.select('*').from(:default).where('port == 10001')
         expect(@n1ql.to_s).to eq("SELECT *\nFROM default\nWHERE port == 10001\n")
