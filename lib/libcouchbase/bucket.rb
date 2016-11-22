@@ -789,6 +789,7 @@ module Libcouchbase
                             attempt += 1
                             if attempt < 3
                                 reactor.sleep 100
+                                # Requires a new connection object or the retry will always fail
                                 @connection = Connection.new(**@connection_options)
                                 retry
                             end
@@ -825,6 +826,7 @@ module Libcouchbase
                         attempt += 1
                         if attempt < 3
                             reactor.sleep 100
+                            # Requires a new connection object or the retry will always fail
                             @connection = Connection.new(**@connection_options)
                             retry
                         end
