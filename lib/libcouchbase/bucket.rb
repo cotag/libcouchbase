@@ -12,12 +12,13 @@ module Libcouchbase
         # http://www.mikeperham.com/2010/02/24/the-trouble-with-ruby-finalizers/
         def self.finalize(connection)
             proc {
+                connection.reactor.unref
                 connection.destroy
-                @connection.reactor.unref
             }
         end
 
         def initialize(**options)
+            @connection_options = options
             @connection = Connection.new(**options)
             connect
 
@@ -778,10 +779,20 @@ module Libcouchbase
 
             connecting.synchronize {
                 Thread.new do
-                    @connection.reactor.run do
-                        @connection.reactor.ref
+                    @connection.reactor.run do |reactor|
+                        reactor.ref
+
+                        attempt = 0
                         begin
                             co @connection.connect
+                        rescue Libcouchbase::Error::ConnectError => e
+                            attempt += 1
+                            if attempt < 3
+                                reactor.sleep 100
+                                @connection = Connection.new(**@connection_options)
+                                retry
+                            end
+                            error = e
                         rescue => e
                             error = e
                         end
@@ -804,10 +815,20 @@ module Libcouchbase
             error = nil
 
             Thread.new do
-                @connection.reactor.run do
-                    @connection.reactor.ref
+                @connection.reactor.run do |reactor|
+                    reactor.ref
+
+                    attempt = 0
                     begin
                         co @connection.connect
+                    rescue Libcouchbase::Error::ConnectError => e
+                        attempt += 1
+                        if attempt < 3
+                            reactor.sleep 100
+                            @connection = Connection.new(**@connection_options)
+                            retry
+                        end
+                        error = e
                     rescue => e
                         error = e
                     end
