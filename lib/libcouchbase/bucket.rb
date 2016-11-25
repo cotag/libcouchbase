@@ -139,10 +139,10 @@ module Libcouchbase
                 end
 
                 result(@reactor.all(*promises).then(proc { |results|
-                    if not extended
-                        results.collect! { |resp| resp.value if resp }
-                    else
+                    if extended
                         results.compact!
+                    else
+                        results.collect! { |resp| resp.value if resp }
                     end
 
                     if assemble_hash
