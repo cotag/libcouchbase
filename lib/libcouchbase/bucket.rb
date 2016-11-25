@@ -84,8 +84,10 @@ module Libcouchbase
         #
         # @example Get and lock multiple keys using custom timeout
         #   c.get("foo", "bar", lock: 3)
-        def get(*keys, extended: false, async: false, quiet: @quiet, assemble_hash: false, **opts)
-            keys = keys.flatten
+        def get(key, *keys, extended: false, async: false, quiet: @quiet, assemble_hash: false, **opts)
+            was_array = key.respond_to?(:to_a) || keys.length > 0
+            keys.unshift Array(key) # Convert enumerables
+            keys.flatten!           # Ensure we're left with a list of keys
 
             if keys.length == 1
                 promise = @connection.get(keys[0], **opts)
@@ -112,6 +114,10 @@ module Libcouchbase
                         hash[keys[0]] = val
                         hash
                     })
+                elsif was_array
+                    promise = promise.then(proc { |val|
+                        Array(val)
+                    })
                 end
 
                 result(promise, async)
@@ -133,9 +139,9 @@ module Libcouchbase
                 end
 
                 result(@reactor.all(*promises).then(proc { |results|
+                    results.compact!
                     if not extended
-                        # Check if resp nil as might have been a quiet request
-                        results.collect! { |resp| resp.value if resp }
+                        results.collect! { |resp| resp.value }
                     end
 
                     if assemble_hash
