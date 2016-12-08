@@ -12,6 +12,12 @@ module Libcouchbase
             @results = []
             @fiber = nil
 
+            # We don't want to resume a fiber that is waiting 
+            # in a yield to user code as then the Fiber might
+            # end before we've finished processing and this is
+            # very much not desirable - dead fiber errors
+            @resume_results = true
+
             # This could be a view or n1ql query
             @query = query
             @row_modifier = row_modifier
@@ -33,8 +39,10 @@ module Libcouchbase
                 begin
                     while not @query_completed do
                         if @results.length > 0
+                            @resume_results = false
                             yield @results.shift
                         else
+                            @resume_results = true
                             resume
                         end
                     end
@@ -42,6 +50,7 @@ module Libcouchbase
                     # cancel is executed on break or error
                     cancel unless @query_completed
                     @fiber = nil
+                    @resume_results = true
                 end
             end
             self
@@ -69,9 +78,11 @@ module Libcouchbase
                 begin
                     while not @query_completed do
                         if index < @results.length
+                            @resume_results = false
                             yield @results[index]
                             index += 1
                         else
+                            @resume_results = true
                             resume
                         end
                     end
@@ -79,6 +90,7 @@ module Libcouchbase
                     # cancel is executed on break or error
                     cancel unless @query_completed
                     @fiber = nil
+                    @resume_results = true
                 end
             end
             self
@@ -202,7 +214,7 @@ module Libcouchbase
             end
 
             # Resume processing
-            @fiber.resume if @fiber && (!@cancelled || final)
+            @fiber.resume if @fiber && @resume_results && (!@cancelled || final)
         end
     end
 
