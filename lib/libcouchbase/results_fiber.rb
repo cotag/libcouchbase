@@ -48,9 +48,9 @@ module Libcouchbase
                     end
                 ensure
                     # cancel is executed on break or error
+                    @resume_results = true
                     cancel unless @query_completed
                     @fiber = nil
-                    @resume_results = true
                 end
             end
             self
@@ -88,9 +88,9 @@ module Libcouchbase
                     end
                 ensure
                     # cancel is executed on break or error
+                    @resume_results = true
                     cancel unless @query_completed
                     @fiber = nil
-                    @resume_results = true
                 end
             end
             self
