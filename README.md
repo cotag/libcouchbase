@@ -1,9 +1,13 @@
 # libcouchbase FFI bindings for Ruby
 
+scrypt [![Build Status](https://secure.travis-ci.org/cotag/libcouchbase.svg)](http://travis-ci.org/cotag/libcouchbase)
+
 An alternative to the official [couchbase-client](https://github.com/couchbase/couchbase-ruby-client)
 
 * This client is non-blocking where possible using Fibers, which makes it simple to write performant code in Frameworks like [Rails](http://rubyonrails.org/).
 * Client is threadsafe and reentrant
+
+This is a low level wrapper around libcouchbase. For a more friendly ActiveModel interface see [couchbase-orm](https://github.com/acaprojects/couchbase-orm)
 
 
 ## Runtime Support:
