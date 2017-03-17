@@ -1,6 +1,6 @@
 # libcouchbase FFI bindings for Ruby
 
-scrypt [![Build Status](https://secure.travis-ci.org/cotag/libcouchbase.svg)](http://travis-ci.org/cotag/libcouchbase)
+[![Build Status](https://secure.travis-ci.org/cotag/libcouchbase.svg)](http://travis-ci.org/cotag/libcouchbase)
 
 An alternative to the official [couchbase-client](https://github.com/couchbase/couchbase-ruby-client)
 
