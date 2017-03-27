@@ -3,10 +3,10 @@ rvm:
   - ruby-2.3.1
   - ruby-2.2.5
   - ruby-head
-  - rubinius-3.62
-  - rubinius
   - jruby-9.1.5.0
   - jruby-head
+  - rubinius
+# - rubinius-3.62 # blocked by https://github.com/rubinius/rubinius/issues/3706
 branches:
   only:
     - master
