@@ -499,7 +499,7 @@ module Libcouchbase
         #   res = c.set("foo", "bar")       #=> #<struct Libcouchbase::Response callback=:callback_set, key="foo", cas=1975457268957184, value="bar", metadata={:format=>:document, :flags=>0}>
         #   c.delete("foo", cas: 123456)    #=> will raise Libcouchbase::Error::KeyExists
         #   c.delete("foo", cas: res.cas)   #=> true
-        def delete(key, async: false, quiet: @quiet, **opts)
+        def delete(key, async: false, quiet: true, **opts)
             promise = @connection.remove(key, **opts).then { true }
             if quiet
                 promise = promise.catch { |error|
@@ -731,7 +731,7 @@ module Libcouchbase
                 @connection.reactor.next_tick do
                     begin
                         response = co(promise)
-                    rescue => e
+                    rescue Exception => e
                         error = e
                     end
 
@@ -742,7 +742,7 @@ module Libcouchbase
 
                 Fiber.yield
 
-                raise error if error
+                update_backtrace(error) if error
                 response
             else
                 request = Mutex.new
@@ -754,7 +754,7 @@ module Libcouchbase
                     @connection.reactor.next_tick do
                         begin
                             response = co(promise)
-                        rescue => e
+                        rescue Exception => e
                             error = e
                         end
 
@@ -766,7 +766,7 @@ module Libcouchbase
                     result.wait(request)
                 }
 
-                raise error if error
+                update_backtrace(error) if error
                 response
             end
         end
@@ -805,7 +805,7 @@ module Libcouchbase
                                 retry
                             end
                             error = e
-                        rescue => e
+                        rescue Exception => e
                             error = e
                         end
 
@@ -818,7 +818,7 @@ module Libcouchbase
                 result.wait(connecting)
             }
 
-            raise error if error
+            update_backtrace(error) if error
         end
 
         # Assume this is being run in em-synchrony
@@ -842,7 +842,7 @@ module Libcouchbase
                             retry
                         end
                         error = e
-                    rescue => e
+                    rescue Exception => e
                         error = e
                     end
 
@@ -854,7 +854,18 @@ module Libcouchbase
 
             Fiber.yield
 
-            raise error if error
+            update_backtrace(error) if error
+        end
+
+        def update_backtrace(error)
+            backtrace = caller
+            backtrace.shift(2)
+            if error.respond_to?(:backtrace) && error.backtrace
+                backtrace << '---- continuation ----'
+                backtrace.concat(error.backtrace)
+            end
+            error.set_backtrace(backtrace)
+            raise error
         end
     end
 end
