@@ -24,7 +24,7 @@ module Libcouchbase
 
             # This obtains the connections reactor
             @reactor = reactor
-            @quiet = true
+            @quiet = false
 
             # clean up the connection once this object is garbage collected
             ObjectSpace.define_finalizer( self, self.class.finalize(@connection) )
@@ -654,7 +654,7 @@ module Libcouchbase
         # @param [String, Symbol] key
         #
         # @param [Hash] options the options for "swap" part
-        # @option options [Fixnum] :retry (0) maximum number of times to autmatically retry upon update collision
+        # @option options [Integer] :retry (0) maximum number of times to autmatically retry upon update collision
         #
         # @yieldparam [Object] value existing value
         # @yieldreturn [Object] new value.
