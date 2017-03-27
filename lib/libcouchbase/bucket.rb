@@ -157,7 +157,11 @@ module Libcouchbase
                 }), async)
             end
         end
-        alias_method :[], :get
+
+        # Quietly obtain an object stored in Couchbase by given key. 
+        def [](key)
+            get(key, quiet: true)
+        end
 
         # Add the item to the database, but fail if the object exists already
         #
