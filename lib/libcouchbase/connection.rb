@@ -3,6 +3,15 @@
 require 'json'
 
 
+at_exit do
+    ObjectSpace.each_object(::Libcouchbase::Connection).each do |connection|
+        connection.destroy.finally do
+            connection.reactor.stop
+        end
+    end
+end
+
+
 module Libcouchbase
     Response = Struct.new(:callback, :key, :cas, :value, :metadata)
     HttpResponse = Struct.new(:callback, :status, :headers, :body, :request)
