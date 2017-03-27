@@ -157,7 +157,7 @@ describe Libcouchbase::Connection do
             end
         }
 
-        expect(@log).to eq(['127.0.0.1:8091'])
+        expect(@log).to eq(['127.0.0.1:11210'])
     end
 
     it "should support counter operations" do

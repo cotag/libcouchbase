@@ -185,12 +185,16 @@ module Libcouchbase
             # Ensure it is thread safe
             @reactor.schedule {
                 if @handle
-                    resp = Ext.get_server_list(@handle)
-                    if resp.null?
-                        defer.reject(RuntimeError.new('not connected'))
-                    else
-                        defer.resolve(resp.get_array_of_string(0))
+                    nodes = Ext.get_num_nodes(@handle)
+                    list = []
+                    count = 0
+                    
+                    while count <= nodes
+                        list << Ext.get_node(@handle, :node_data, count)
+                        count += 1
                     end
+
+                    defer.resolve(list.uniq)
                 else
                     defer.reject(RuntimeError.new('not connected'))
                 end
