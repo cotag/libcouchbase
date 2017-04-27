@@ -47,7 +47,7 @@ module Libcouchbase
 
             pairs = []
             options.each { |key, val|
-                if key.to_s.include? 'key' && val[0] != "["
+                if key.to_s.include?('key') && val[0] != "["
                     pairs << "#{key}=#{[val].to_json[1...-1]}"
                 else
                     pairs << "#{key}=#{val}"
