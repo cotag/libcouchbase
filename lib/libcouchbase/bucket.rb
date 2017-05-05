@@ -12,8 +12,9 @@ module Libcouchbase
         # http://www.mikeperham.com/2010/02/24/the-trouble-with-ruby-finalizers/
         def self.finalize(connection)
             proc {
-                connection.reactor.unref
-                connection.destroy
+                connection.destroy.finally do
+                    connection.reactor.unref
+                end
             }
         end
 
