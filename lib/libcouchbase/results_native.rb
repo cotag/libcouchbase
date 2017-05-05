@@ -153,7 +153,7 @@ module Libcouchbase
                 @query_in_progress = false
 
             elsif not @cancelled
-                 # Do we want to transform the results
+                # Do we want to transform the results
                 if @row_modifier
                     begin
                         @results << @row_modifier.call(item)
