@@ -43,7 +43,7 @@ The library is designed to run anywhere [Rails](http://rubyonrails.org/) runs:
 
 * Ruby 2.2+
 * JRuby 9.1+
-* Rubinius (currently blocked due to [#3706](https://github.com/rubinius/rubinius/issues/3706))
+* Rubinius 3.76+
 
 
 Tested on the following Operating Systems:
