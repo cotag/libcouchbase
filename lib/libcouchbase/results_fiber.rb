@@ -37,8 +37,8 @@ module Libcouchbase
                 @fiber = Fiber.current
 
                 begin
-                    while not @query_completed do
-                        if @results.length > 0
+                    while !@query_completed || (cont = @results.length > 0) do
+                        if cont
                             @resume_results = false
                             yield @results.shift
                         else
@@ -76,8 +76,8 @@ module Libcouchbase
                 @fiber = Fiber.current
 
                 begin
-                    while not @query_completed do
-                        if index < @results.length
+                    while !@query_completed || (cont = index < @results.length) do
+                        if cont
                             @resume_results = false
                             yield @results[index]
                             index += 1
@@ -132,8 +132,8 @@ module Libcouchbase
 
                 result = []
                 begin
-                    while not @query_completed do
-                        if index < @results.length && index < num
+                    while !@query_completed  || (cont = index < @results.length && index < num) do
+                        if cont
                             result << @results[index]
                             index += 1
                         else
