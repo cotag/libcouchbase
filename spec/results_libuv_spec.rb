@@ -81,12 +81,14 @@ describe Libcouchbase::ResultsLibuv do
     end
 
     after :each do
+        @timeout.stop
         @timeout.close
     end
 
     it "should stream the response" do
         @reactor.run { |reactor|
             @view.each {|i| @log << i }
+            @reactor.stop
         }
 
         expect(@log).to eq([:new_row, 0, :new_row, 1, :new_row, 2, :new_row, 3])
@@ -99,6 +101,7 @@ describe Libcouchbase::ResultsLibuv do
         @reactor.run { |reactor|
             @query.preloaded = 2
             @view.each {|i| @log << i }
+            @reactor.stop
         }
 
         expect(@view.complete_result_set).to be(true)
@@ -115,6 +118,7 @@ describe Libcouchbase::ResultsLibuv do
             expect(@view.query_in_progress).to be(false)
             expect(@view.query_completed).to be(true)
             @log << @view.to_a
+            @reactor.stop
         }
 
         expect(@view.complete_result_set).to be(true)
@@ -127,6 +131,7 @@ describe Libcouchbase::ResultsLibuv do
         @reactor.run { |reactor|
             @log << @view.to_a
             @log << @view.to_a
+            @reactor.stop
         }
 
         expect(@log).to eq([:new_row, :new_row, :new_row, :new_row, [0, 1, 2, 3], [0, 1, 2, 3]])
@@ -137,6 +142,7 @@ describe Libcouchbase::ResultsLibuv do
             enum = @view.each
             @log << enum.next
             @log << enum.next
+            @reactor.stop
         }
 
         expect(@log).to eq([:new_row, :new_row, :new_row, :new_row, 0, 1])
@@ -146,6 +152,7 @@ describe Libcouchbase::ResultsLibuv do
         @reactor.run { |reactor|
             @log << @view.count
             @log << @view.count
+            @reactor.stop
         }
 
         expect(@log).to eq([:new_row, 4, 4])
@@ -161,6 +168,7 @@ describe Libcouchbase::ResultsLibuv do
             rescue => e
                 @log << e.message
             end
+            @reactor.stop
         }
 
         expect(@log).to eq([:new_row, 0, 'what what'])
@@ -183,6 +191,7 @@ describe Libcouchbase::ResultsLibuv do
             rescue => e
                 @log << e.message
             end
+            @reactor.stop
         }
 
         expect(@log).to eq([:new_row, 0, :new_row, 'what what'])
@@ -201,6 +210,7 @@ describe Libcouchbase::ResultsLibuv do
             rescue => e
                 @log << e.message
             end
+            @reactor.stop
         }
 
         expect(@log).to eq([:new_row, 'what what'])
@@ -226,6 +236,7 @@ describe Libcouchbase::ResultsLibuv do
             rescue => e
                 @log << e.message
             end
+            @reactor.stop
         }
 
         expect(@log).to eq([:new_row, 0, 'first'])
@@ -234,6 +245,7 @@ describe Libcouchbase::ResultsLibuv do
     it "should support streaming the response so results are not all stored in memory" do
         @reactor.run { |reactor|
             @view.stream {|i| @log << i }
+            @reactor.stop
         }
 
         expect(@view.complete_result_set).to be(false)
