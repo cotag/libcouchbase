@@ -830,6 +830,11 @@ module Libcouchbase::Ext
     :unknown_sdcmd, 77,
     :eno_commands, 78,
     :query_error, 79,
+    :generic_tmperr, 80,
+    :generic_subdocerr, 81,
+    :generic_constraint_err, 82,
+    :nameserver_error, 83,
+    :not_authorized, 84,
     :max_error, 4096
   ]
 
