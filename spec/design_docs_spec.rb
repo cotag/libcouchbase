@@ -3,7 +3,7 @@
 require 'libcouchbase'
 
 
-describe Libcouchbase::DesignDocs do
+describe Libcouchbase::DesignDocs, design_docs: true do
     before :each do
         @ddoc = Libcouchbase::Bucket.new.design_docs
     end
