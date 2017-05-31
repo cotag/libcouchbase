@@ -64,6 +64,10 @@ describe Libcouchbase::ResultsLibuv do
     before :each do
         @log = []
         @reactor = ::Libuv::Reactor.default
+        @reactor.notifier do |err|
+            @reactor.stop
+            @log << err
+        end
         @query = MockQuery.new(@log)
         @view = Libcouchbase::ResultsLibuv.new(@query)
         expect(@log).to eq([])
@@ -74,10 +78,10 @@ describe Libcouchbase::ResultsLibuv do
             @view.each {|i| @log << i }
         }
 
+        expect(@log).to eq([:new_row, 0, :new_row, 1, :new_row, 2, :new_row, 3])
         expect(@view.complete_result_set).to be(true)
         expect(@view.query_in_progress).to be(false)
         expect(@view.query_completed).to be(true)
-        expect(@log).to eq([:new_row, 0, :new_row, 1, :new_row, 2, :new_row, 3])
     end
 
     it "should continue to stream the response even if some has already been loaded" do
