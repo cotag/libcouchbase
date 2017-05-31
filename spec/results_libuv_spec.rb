@@ -68,9 +68,19 @@ describe Libcouchbase::ResultsLibuv do
             @reactor.stop
             @log << err
         end
+        @timeout = @reactor.timer do
+            @timeout.close
+            @reactor.stop
+            @log << "test timed out"
+        end
+        @timeout.start(5000)
         @query = MockQuery.new(@log)
         @view = Libcouchbase::ResultsLibuv.new(@query)
         expect(@log).to eq([])
+    end
+
+    after :each do
+        @timeout.close
     end
 
     it "should stream the response" do
