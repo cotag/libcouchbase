@@ -173,7 +173,7 @@ describe Libcouchbase::ResultsNative do
 
         @query.wait_join
 
-        expect(@qlog).to eq([:new_row, :new_row, :new_row, :new_row])
+        expect(@qlog).to eq([:new_row])
         expect(@log).to eq([0, 'what what'])
     end
 
@@ -241,7 +241,7 @@ describe Libcouchbase::ResultsNative do
 
         @query.wait_join
 
-        expect(@qlog).to eq([:new_row, :new_row])
+        expect(@qlog).to eq([:new_row])
         expect(@log).to eq([0, 'first'])
     end
 

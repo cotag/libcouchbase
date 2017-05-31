@@ -37,14 +37,17 @@ module Libcouchbase
                 @fiber = Fiber.current
 
                 begin
-                    while !@query_completed || (cont = @results.length > 0) do
-                        if cont
+                    remaining = @results.length > 0
+                    while !@query_completed || remaining do
+                        if remaining
                             @resume_results = false
                             yield @results.shift
                         else
                             @resume_results = true
                             resume
                         end
+
+                        remaining = @results.length > 0
                     end
                 ensure
                     # cancel is executed on break or error
@@ -71,13 +74,13 @@ module Libcouchbase
                 @results.each &blk
             else
                 perform
-
-                index = 0
                 @fiber = Fiber.current
 
                 begin
-                    while !@query_completed || (cont = index < @results.length) do
-                        if cont
+                    index = 0
+                    remaining = index < @results.length
+                    while !@query_completed || remaining do
+                        if remaining
                             @resume_results = false
                             yield @results[index]
                             index += 1
@@ -85,6 +88,8 @@ module Libcouchbase
                             @resume_results = true
                             resume
                         end
+
+                        remaining = index < @results.length
                     end
                 ensure
                     # cancel is executed on break or error
@@ -126,19 +131,21 @@ module Libcouchbase
                 @results[0...num]
             else
                 perform is_complete: false, limit: num
-
-                index = 0
                 @fiber = Fiber.current
-
                 result = []
+
                 begin
-                    while !@query_completed  || (cont = index < @results.length && index < num) do
-                        if cont
+                    index = 0
+                    remaining = index < @results.length && index < num
+                    while !@query_completed || remaining do
+                        if remaining
                             result << @results[index]
                             index += 1
                         else
                             resume
                         end
+
+                        remaining = index < @results.length && index < num
                     end
                 ensure
                     @fiber = nil

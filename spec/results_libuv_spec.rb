@@ -73,7 +73,8 @@ describe Libcouchbase::ResultsLibuv do
             @reactor.stop
             @log << "test timed out"
         end
-        @timeout.start(5000)
+        @timeout.start(2000)
+        @timeout.unref
         @query = MockQuery.new(@log)
         @view = Libcouchbase::ResultsLibuv.new(@query)
         expect(@log).to eq([])

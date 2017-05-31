@@ -27,12 +27,15 @@ module Libcouchbase
             else
                 perform is_complete: false
                 begin
-                    while !@query_completed || (cont = @results.length > 0) do
-                        if cont
+                    remaining = @results.length > 0
+                    while !@query_completed || remaining do
+                        if remaining
                             yield @results.shift
                         else
                             process_next_item
                         end
+
+                        remaining = @results.length > 0
                     end
                 ensure
                     # cancel is executed on break or error
@@ -62,13 +65,16 @@ module Libcouchbase
 
                 begin
                     index = 0
-                    while !@query_completed || (cont = index < @results.length) do
-                        if cont
+                    remaining = index < @results.length
+                    while !@query_completed || remaining do
+                        if remaining
                             yield @results[index]
                             index += 1
                         else
                             process_next_item
                         end
+
+                        remaining = index < @results.length
                     end
                 ensure
                     # cancel is executed on break or error
@@ -109,13 +115,16 @@ module Libcouchbase
 
                 index = 0
                 result = []
-                while !@query_completed || (cont = index < @results.length && index < num) do
-                    if cont
+                remaining = index < @results.length && index < num
+                while !@query_completed || remaining do
+                    if remaining
                         result << @results[index]
                         index += 1
                     else
                         process_next_item
                     end
+
+                    remaining = index < @results.length && index < num
                 end
 
                 raise @error if @error
