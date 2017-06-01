@@ -146,7 +146,8 @@ module Libcouchbase
                     err = Ext.connect(@handle)
                     if err != :success
                         @bootstrap_defer.reject(Error.lookup(err).new('failed to schedule connect'))
-                        destroy
+                        Ext.destroy(@handle)
+                        handle_destroyed
                     end
                 end
             }
