@@ -7,6 +7,7 @@ require 'json'
 unless defined?(RUBY_ENGINE) && RUBY_ENGINE == 'jruby'
     at_exit do
         ObjectSpace.each_object(::Libcouchbase::Connection).each do |connection|
+            next unless connection.reactor.running?
             connection.destroy.finally do
                 connection.reactor.stop
             end
