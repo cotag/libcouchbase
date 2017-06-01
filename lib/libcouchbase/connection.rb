@@ -7,12 +7,17 @@ require 'json'
 unless defined?(RUBY_ENGINE) && RUBY_ENGINE == 'jruby'
     at_exit do
         GC.start(full_mark: true, immediate_sweep: true)
+        connections = []
         ObjectSpace.each_object(::Libcouchbase::Connection).each do |connection|
             next unless connection.reactor.running?
-            connection.destroy.finally do
-                connection.reactor.stop
+            connections << connection
+            begin
+                connection.destroy
+            rescue => e
             end
         end
+        sleep 2 if connections.length > 0
+        connections.each { |c| c.reactor.stop }
     end
 end
 
@@ -170,17 +175,21 @@ module Libcouchbase
         end
 
         def destroy
-            defer = @reactor.defer
+            raise 'not connected' unless @handle
+            return @destroy_defer.promise if @destroy_defer
 
             # Ensure it is thread safe
+            defer = @reactor.defer
             @reactor.schedule {
-                if @handle
+                if @destroy_defer.nil?
+                    @destroy_defer = defer
                     Ext.destroy(@handle)
                     handle_destroyed
+                    defer.resolve(nil)
+                else
+                    defer.resolve(@destroy_defer.promise)
                 end
-                defer.resolve(self)
             }
-
             defer.promise
         end
 
