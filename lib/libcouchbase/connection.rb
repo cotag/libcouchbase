@@ -4,8 +4,9 @@ require 'json'
 
 
 # Not required on jruby - buckets are cleaned up by GC
-unless defined?(RUBY_ENGINE) && RUBY_ENGINE == 'jruby'
+if defined?(RUBY_ENGINE) && RUBY_ENGINE == 'ruby'
     at_exit do
+        GC.start(full_mark: true, immediate_sweep: true)
         ObjectSpace.each_object(::Libcouchbase::Connection).each do |connection|
             next unless connection.reactor.running?
             connection.destroy.finally do
