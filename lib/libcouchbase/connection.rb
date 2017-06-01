@@ -1,22 +1,23 @@
 # frozen_string_literal: true, encoding: ASCII-8BIT
 
 require 'json'
-require 'concurrent'
 
 
 # Not required on jruby - buckets are cleaned up by GC
 unless defined?(RUBY_ENGINE) && RUBY_ENGINE == 'jruby'
     at_exit do
         GC.start
-
-        Libcouchbase::Connections.each do |connection, reactor|
-            next unless reactor.running?
-            if connection.handle
-                connection.destroy.finally { reactor.stop }
-            else
-                reactor.stop
+        connections = []
+        ObjectSpace.each_object(::Libcouchbase::Connection).each do |connection|
+            next unless connection.reactor.running?
+            connections << connection
+            begin
+                connection.destroy
+            rescue => e
             end
         end
+        sleep 2 if connections.length > 0
+        connections.each { |c| c.reactor.stop }
     end
 end
 
@@ -24,7 +25,6 @@ end
 module Libcouchbase
     Response = Struct.new(:callback, :key, :cas, :value, :metadata)
     HttpResponse = Struct.new(:callback, :status, :headers, :body, :request)
-    Connections = ::Concurrent::Map.new
 
     class Connection
         include Callbacks
@@ -110,54 +110,48 @@ module Libcouchbase
 
         def connect(defer: nil, flush_enabled: false)
             raise 'already connected' if @handle || @bootstrap_defer
-            defer ||= @reactor.defer
+            @bootstrap_defer = defer || @reactor.defer
+            promise = @bootstrap_defer.promise
 
             @reactor.schedule {
-                if @bootstrap_defer
-                    defer.resolve(@bootstrap_defer.promise)
+                @flush_enabled = flush_enabled
+
+                @requests = {}
+
+                # Create a library handle
+                #  the create call allocates the memory and updates our pointer
+                err = Ext.create(@handle_ptr, @connection)
+                if err != :success
+                    @bootstrap_defer.reject(Error.lookup(err).new('failed to create instance'))
+                    handle_destroyed
                 else
-                    @bootstrap_defer = defer
-                    @destroy_defer = nil
-                    @flush_enabled = flush_enabled
+                    # We extract the pointer and create the handle structure
+                    @ref = @handle_ptr.get_pointer(0).address
+                    @handle = Ext::T.new @handle_ptr.get_pointer(0)
 
-                    @requests = {}
+                    # Register the callbacks we are interested in
+                    Ext.set_bootstrap_callback(@handle, callback(:bootstrap_callback))
 
-                    # Create a library handle
-                    #  the create call allocates the memory and updates our pointer
-                    err = Ext.create(@handle_ptr, @connection)
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_get],     callback(:callback_get))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_unlock],  callback(:callback_unlock))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_store],   callback(:callback_store))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_storedur],callback(:callback_storedur))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_counter], callback(:callback_counter))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_touch],   callback(:callback_touch))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_remove],  callback(:callback_remove))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_http],    callback(:callback_http))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_cbflush], callback(:callback_cbflush)) if @flush_enabled
+
+                    # Connect to the database
+                    err = Ext.connect(@handle)
                     if err != :success
-                        @bootstrap_defer.reject(Error.lookup(err).new('failed to create instance'))
-                        handle_destroyed
-                    else
-                        # We extract the pointer and create the handle structure
-                        @ref = @handle_ptr.get_pointer(0).address
-                        @handle = Ext::T.new @handle_ptr.get_pointer(0)
-
-                        # Register the callbacks we are interested in
-                        Ext.set_bootstrap_callback(@handle, callback(:bootstrap_callback))
-
-                        Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_get],     callback(:callback_get))
-                        Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_unlock],  callback(:callback_unlock))
-                        Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_store],   callback(:callback_store))
-                        Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_storedur],callback(:callback_storedur))
-                        Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_counter], callback(:callback_counter))
-                        Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_touch],   callback(:callback_touch))
-                        Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_remove],  callback(:callback_remove))
-                        Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_http],    callback(:callback_http))
-                        Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_cbflush], callback(:callback_cbflush)) if @flush_enabled
-
-                        # Connect to the database
-                        err = Ext.connect(@handle)
-                        if err != :success
-                            @bootstrap_defer.reject(Error.lookup(err).new('failed to schedule connect'))
-                            Ext.destroy(@handle)
-                            handle_destroyed
-                        end
+                        @bootstrap_defer.reject(Error.lookup(err).new('failed to schedule connect'))
+                        destroy
                     end
                 end
             }
 
-            defer.promise
+            promise
         end
 
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-cntl.html
@@ -190,7 +184,6 @@ module Libcouchbase
                 if @destroy_defer.nil?
                     @destroy_defer = defer
                     Ext.destroy(@handle)
-                    Connections.delete(self)
                     handle_destroyed
                     defer.resolve(nil)
                 else
@@ -644,10 +637,8 @@ module Libcouchbase
             if error_code == Ext::ErrorT[:success]
                 @bootstrap_defer.resolve(self)
                 @bootstrap_defer = nil
-                Connections[self] = @reactor
             else
                 @bootstrap_defer.reject(Error.lookup(error_code).new("bootstrap failed"))
-                Ext.destroy(@handle)
                 handle_destroyed
             end
         end
