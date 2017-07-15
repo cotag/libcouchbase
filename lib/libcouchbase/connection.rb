@@ -94,9 +94,10 @@ module Libcouchbase
             # Configure the connection to the database
             @connection = Ext::CreateSt.new
             @connection[:version] = 3
-            @connection[:v][:v3][:connstr] = FFI::MemoryPointer.from_string(connstr)
-            @connection[:v][:v3][:passwd]  = FFI::MemoryPointer.from_string(password) if password
-            @connection[:v][:v3][:io]      = @io_ptr.get_pointer(0)
+            @connection[:v][:v3][:connstr]  = FFI::MemoryPointer.from_string(connstr)
+            @connection[:v][:v3][:username] = FFI::MemoryPointer.from_string(bucket.to_s)
+            @connection[:v][:v3][:passwd]   = FFI::MemoryPointer.from_string(password) if password
+            @connection[:v][:v3][:io]       = @io_ptr.get_pointer(0)
             @handle_ptr = FFI::MemoryPointer.new :pointer, 1
         end
 
