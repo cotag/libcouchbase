@@ -800,7 +800,7 @@ module Libcouchbase
                         rescue Libcouchbase::Error::ConnectError => e
                             attempt += 1
                             if attempt < 3
-                                reactor.sleep 100
+                                reactor.sleep 200
                                 # Requires a new connection object or the retry will always fail
                                 @connection = Connection.new(**@connection_options)
                                 retry
@@ -837,7 +837,7 @@ module Libcouchbase
                     rescue Libcouchbase::Error::ConnectError => e
                         attempt += 1
                         if attempt < 3
-                            reactor.sleep 100
+                            reactor.sleep 200
                             # Requires a new connection object or the retry will always fail
                             @connection = Connection.new(**@connection_options)
                             retry
