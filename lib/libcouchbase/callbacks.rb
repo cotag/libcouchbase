@@ -16,7 +16,7 @@ module Libcouchbase
                 inst = @callback_lookup[instance_id]
                 if inst.respond_to? func_name, true
                     # Wrap all callbacks in a fiber
-                    ::Libuv.reactor.exec { inst.__send__(func_name, *args) }
+                    ::Fiber.new { inst.__send__(func_name, *args) }.resume
                 end
             end
 
