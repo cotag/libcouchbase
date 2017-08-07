@@ -177,21 +177,24 @@ module Libcouchbase
         end
 
         def destroy
-            raise 'not connected' unless @handle
             return @destroy_defer.promise if @destroy_defer
 
             # Ensure it is thread safe
             defer = @reactor.defer
-            @reactor.schedule {
-                if @destroy_defer.nil?
-                    @destroy_defer = defer
-                    Ext.destroy(@handle)
-                    handle_destroyed
-                    defer.resolve(nil)
-                else
-                    defer.resolve(@destroy_defer.promise)
-                end
-            }
+            if @handle
+                @reactor.schedule {
+                    if @destroy_defer.nil?
+                        @destroy_defer = defer
+                        Ext.destroy(@handle)
+                        handle_destroyed
+                        defer.resolve(nil)
+                    else
+                        defer.resolve(@destroy_defer.promise)
+                    end
+                }
+            else
+                defer.resolve(nil)
+            end
             defer.promise
         end
 
