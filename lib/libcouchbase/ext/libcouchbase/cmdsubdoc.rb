@@ -35,6 +35,15 @@ module Libcouchbase::Ext
   #   This field may be left empty, in which case the mode is implicitly
   #   derived from the _first_ command issued.
   class CMDSUBDOC < FFI::Struct
+    # CMD flags
+    UPSERT_DOC = (1<<16) # document is to be created if it does not exist.
+    INSERT_DOC = (1<<17) # document must be created anew. Fail if it exists
+    ACCESS_DELETED = (1<<18) # Access a potentially deleted document.
+
+    SDMULTI_MODE_INVALID = 0
+    SDMULTI_MODE_LOOKUP = 1
+    SDMULTI_MODE_MUTATE = 2
+
     layout :cmdflags, :uint,
            :exptime, :uint,
            :cas, :ulong_long,
@@ -43,6 +52,9 @@ module Libcouchbase::Ext
            :specs, SDSPEC.by_ref,
            :nspecs, :ulong,
            :error_index, :pointer,
+
+           # This can either be SDMULTI_MODE_LOOKUP or SDMULTI_MODE_MUTATE
+           # This field may be left empty, in which case the mode is implicitly derived from the _first_ command issued.
            :multimode, :uint
   end
 
