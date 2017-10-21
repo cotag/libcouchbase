@@ -1018,6 +1018,46 @@ module Libcouchbase::Ext
 
   # (Not documented)
   #
+  # @method n1p_readonly(params, readonly)
+  # @param [N1QLPARAMS] params
+  # @param [Integer] readonly if non-zero, the query will be read-only
+  # @return [ErrorT]
+  # @scope class
+  #
+  attach_function :n1p_readonly, :lcb_n1p_readonly, [N1QLPARAMS.by_ref, :int], ErrorT
+
+  # (Not documented)
+  #
+  # @method n1p_readonly(params, readonly)
+  # @param [N1QLPARAMS] params
+  # @param [Integer] Sets maximum buffered channel size. Use 0 or a negative number to disable.
+  # @return [ErrorT]
+  # @scope class
+  #
+  attach_function :n1p_scancap, :lcb_n1p_scancap, [N1QLPARAMS.by_ref, :int], ErrorT
+
+  # (Not documented)
+  #
+  # @method n1p_readonly(params, readonly)
+  # @param [N1QLPARAMS] params
+  # @param [Integer] maximum number of items each execution operator can buffer between operators.
+  # @return [ErrorT]
+  # @scope class
+  #
+  attach_function :n1p_pipelinecap, :lcb_n1p_pipelinecap, [N1QLPARAMS.by_ref, :int], ErrorT
+
+  # (Not documented)
+  #
+  # @method n1p_readonly(params, readonly)
+  # @param [N1QLPARAMS] params
+  # @param [Integer] number of items execution operators can batch for fetch from the KV
+  # @return [ErrorT]
+  # @scope class
+  #
+  attach_function :n1p_pipelinebatch, :lcb_n1p_pipelinebatch, [N1QLPARAMS.by_ref, :int], ErrorT
+
+  # (Not documented)
+  #
   # @method n1p_setopt(params, name, n_name, value, n_value)
   # @param [N1QLPARAMS] params
   # @param [String] name
