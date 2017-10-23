@@ -49,7 +49,7 @@ module Libcouchbase::Ext
            :cas, :ulong_long,
            :key, KEYBUF.by_value,
            :hashkey, KEYBUF.by_value,
-           :specs, SDSPEC.by_ref,
+           :specs, :pointer, # ==> SDSPEC.by_ref,
            :nspecs, :ulong,
            :error_index, :pointer,
 

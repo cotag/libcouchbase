@@ -40,6 +40,8 @@ module Libcouchbase
         define_callback function: :callback_remove
         define_callback function: :callback_cbflush
         define_callback function: :callback_http
+        define_callback function: :callback_sdlookup # subdoc lookup
+        define_callback function: :callback_sdmutate
 
         # These are passed with the request
         define_callback function: :viewquery_callback
@@ -133,15 +135,17 @@ module Libcouchbase
                     # Register the callbacks we are interested in
                     Ext.set_bootstrap_callback(@handle, callback(:bootstrap_callback))
 
-                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_get],     callback(:callback_get))
-                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_unlock],  callback(:callback_unlock))
-                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_store],   callback(:callback_store))
-                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_storedur],callback(:callback_storedur))
-                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_counter], callback(:callback_counter))
-                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_touch],   callback(:callback_touch))
-                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_remove],  callback(:callback_remove))
-                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_http],    callback(:callback_http))
-                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_cbflush], callback(:callback_cbflush)) if @flush_enabled
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_get],      callback(:callback_get))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_unlock],   callback(:callback_unlock))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_store],    callback(:callback_store))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_storedur], callback(:callback_storedur))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_counter],  callback(:callback_counter))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_touch],    callback(:callback_touch))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_remove],   callback(:callback_remove))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_http],     callback(:callback_http))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_sdlookup], callback(:callback_sdlookup))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_sdmutate], callback(:callback_sdmutate))
+                    Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_cbflush],  callback(:callback_cbflush)) if @flush_enabled
 
                     # Connect to the database
                     err = Ext.connect(@handle)
@@ -453,6 +457,31 @@ module Libcouchbase
             defer.promise
         end
 
+        def subdoc(request, expire_in: nil, ttl: nil, expire_at: nil, cas: nil, **opts)
+            raise 'not connected' unless @handle
+            defer ||= @reactor.defer
+
+            cmd = Ext::CMDSUBDOC.new
+            req = Request.new(cmd, defer, request.key, request)
+            key = cmd_set_key(req, cmd, request.key)
+
+            cmd[:multimode] = request.mode == :mutate ? Ext::CMDSUBDOC::SDMULTI_MODE_MUTATE : Ext::CMDSUBDOC::SDMULTI_MODE_LOOKUP
+            cmd[:specs] = request.to_specs_array
+
+            cmd[:cas] = cas if cas
+            expire_in ||= ttl
+            cmd[:exptime] = expire_in ? expires_in(expire_in) : expire_at.to_i
+
+            @reactor.schedule {
+                pointer = cmd.to_ptr
+                @requests[pointer.address] = req
+                check_error key, defer, Ext.subdoc3(@handle, pointer, cmd, subdoc: true)
+                request.free_memory
+            }
+
+            defer.promise
+        end
+
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-flush.html
         def flush(defer: nil)
             raise 'not connected' unless @handle
@@ -608,7 +637,7 @@ module Libcouchbase
             end
         end
 
-        def check_error(key, defer, err)
+        def check_error(key, defer, err, subdoc: false)
             if err != :success
                 error = Error.lookup(err).new("request not scheduled for #{key}")
                 backtrace = caller
@@ -715,6 +744,43 @@ module Libcouchbase
             resp_callback_common(resp, :callback_unlock) do |req, cb|
                 Response.new(cb, req.key, resp[:cas])
             end
+        end
+
+        def callback_sdlookup(handle, type, response)
+            resp = Ext::RESPSUBDOC.new response
+            resp_callback_common(resp, :callback_sdlookup) do |req, cb|
+                subdoc_common(resp, req, cb)
+            end
+        end
+
+        # Only counter returns a result
+        def callback_sdmutate(handle, type, response)
+            resp = Ext::RESPSUBDOC.new response
+            resp_callback_common(resp, :callback_sdmutate) do |req, cb|
+                subdoc_common(resp, req, cb)
+            end
+        end
+
+        def subdoc_common(resp, req, cb)
+            defers = req.value.response
+            iterval = FFI::MemoryPointer.new(:ulong, 1)
+            cur_res = Ext::SDENTRY.new
+
+            loop do
+                check = Ext.sdresult_next(resp, cur_res, iterval)
+                break if check == 0
+
+                index = cur_res[:index]
+                if cur_res[:status] == :success
+                    result = cur_res[:value].read_string(cur_res[:nvalue])
+                    result = "[#{result}]"
+                    defers[index].resolve(JSON.parse(result, DECODE_OPTIONS)[0])
+                else
+                    defers[index].reject(Error.lookup(cur_res[:status]).new("Subdoc #{cb} failed for #{req.key} index #{index}"))
+                end
+            end
+
+            Response.new(cb, req.key, resp[:cas])
         end
 
         def callback_cbflush(handle, type, response)
