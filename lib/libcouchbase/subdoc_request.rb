@@ -16,9 +16,9 @@ class Libcouchbase::SubdocRequest
     # Internal use only
     def to_specs_array
         return @mem if @mem # effectively freezes this object
-        @mem = FFI::MemoryPointer.new(Ext::SDSPEC, @specs.length, false)
+        @mem = FFI::MemoryPointer.new(::Libcouchbase::Ext::SDSPEC, @specs.length, false)
         @specs.each_with_index do |spec, index|
-            struct_bytes = spec.get_bytes(0, Ext::SDSPEC.size) # (offset, length)
+            struct_bytes = spec.get_bytes(0, ::Libcouchbase::Ext::SDSPEC.size) # (offset, length)
             @mem[index].put_bytes(0, struct_bytes) # (offset, byte_string)
         end
         @specs = nil
@@ -76,9 +76,9 @@ class Libcouchbase::SubdocRequest
         @mode ||= mode
         raise "unable to perform #{cmd} as mode is currently #{@mode}" if @mode != mode
 
-        spec = Ext::SDSPEC.new
-        spec[:sdcmd] = Ext::SUBDOCOP[cmd]
-        spec[:options] = Ext::SDSPEC::MKINTERMEDIATES if create_intermediates
+        spec = ::Libcouchbase::Ext::SDSPEC.new
+        spec[:sdcmd] = ::Libcouchbase::Ext::SUBDOCOP[cmd]
+        spec[:options] = ::Libcouchbase::Ext::SDSPEC::MKINTERMEDIATES if create_intermediates
 
         loc = path.to_s
         str = ref(loc)
@@ -104,7 +104,7 @@ class Libcouchbase::SubdocRequest
 
     # We need to hold a reference to c-strings so they are not GC'd
     def ref(string)
-        str = FFI::MemoryPointer.from_string(string)
+        str = ::FFI::MemoryPointer.from_string(string)
         @refs << str
         str
     end
