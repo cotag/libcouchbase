@@ -18,7 +18,7 @@ class Libcouchbase::SubdocRequest
         return @mem if @mem # effectively freezes this object
         @mem = FFI::MemoryPointer.new(::Libcouchbase::Ext::SDSPEC, @specs.length, false)
         @specs.each_with_index do |spec, index|
-            struct_bytes = spec.get_bytes(0, ::Libcouchbase::Ext::SDSPEC.size) # (offset, length)
+            struct_bytes = spec.to_ptr.get_bytes(0, ::Libcouchbase::Ext::SDSPEC.size) # (offset, length)
             @mem[index].put_bytes(0, struct_bytes) # (offset, byte_string)
         end
         @specs = nil
