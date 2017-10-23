@@ -223,7 +223,7 @@ describe Libcouchbase::Connection do
 
     it "should flush when enabled explicitly", flush: true do
         @reactor.run { |reactor|
-            connection = Libcouchbase::Connection.new(bucket: :test, password: 'password123')
+            connection = Libcouchbase::Connection.new(bucket: :test, username: 'tester', password: 'password123')
             connection.connect(flush_enabled: true).then do
                 begin
                     connection.flush.then(proc { |resp|
