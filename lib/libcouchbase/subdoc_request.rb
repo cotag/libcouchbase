@@ -4,8 +4,8 @@ module Libcouchbase; end;
 class Libcouchbase::SubdocRequest
 
     def initialize(key)
-        raise ArgumentError.new("invalid document key #{key.inspect}") unless key.present?
         @key = key.to_s
+        raise ArgumentError.new("invalid document key #{key.inspect}") unless @key.length > 0
         @refs = []
         @mode = nil
         @specs = []
