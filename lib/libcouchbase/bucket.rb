@@ -534,6 +534,29 @@ module Libcouchbase
             result @connection.touch(**opts), async
         end
 
+        # Perform subdocument operations on a key.
+        #
+        # Yields a request builder to a block and applies the operations performed
+        #
+        # @param [String, Symbol] key
+        #
+        # @yieldparam [Libcouchbase::SubdocRequest] the subdocument request object used to define the request
+        #
+        # @example Perform a subdocument operation using a block
+        #
+        #     c.subdoc(:foo) { |subdoc|
+        #       subdoc.get('sub.key')
+        #       subdoc.exists?('other.key')
+        #       subdoc.get_count('some.array')
+        #     } # => ["sub key val", true, 23]
+        def subdoc(key, extended: false, async: false, **opts)
+            sd = SubdocRequest.new(key)
+            yield sd
+            promise = @connection.subdoc(sd, opts)
+            promise = promise.then { |resp| resp.value } unless extended
+            result promise, async
+        end
+
         # Fetch design docs stored in current bucket
         #
         # @return [Libcouchbase::DesignDocs]

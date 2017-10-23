@@ -9,10 +9,9 @@ class Libcouchbase::SubdocRequest
         @refs = []
         @mode = nil
         @specs = []
-        @response = []
     end
 
-    attr_reader :mode, :key, :response
+    attr_reader :mode, :key
 
     # Internal use only
     def to_specs_array
@@ -44,6 +43,7 @@ class Libcouchbase::SubdocRequest
             self
         end
     end
+    alias_method :exists?, :exists
 
 
     # ===========
@@ -86,7 +86,6 @@ class Libcouchbase::SubdocRequest
         spec[:path][:contig][:bytes] = str
         spec[:path][:contig][:nbytes] = loc.bytesize
 
-        @response << (defer || @reactor.defer)
         @specs << spec
         spec
     end

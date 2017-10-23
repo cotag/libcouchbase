@@ -33,4 +33,5 @@ module Libcouchbase
     autoload :ResultsEM,     'libcouchbase/results_fiber'
     autoload :ResultsLibuv,  'libcouchbase/results_fiber'
     autoload :ResultsNative, 'libcouchbase/results_native'
+    autoload :SubdocRequest, 'libcouchbase/subdoc_request'
 end

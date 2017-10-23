@@ -765,22 +765,22 @@ module Libcouchbase
             defers = req.value.response
             iterval = FFI::MemoryPointer.new(:ulong, 1)
             cur_res = Ext::SDENTRY.new
+            values = []
 
             loop do
                 check = Ext.sdresult_next(resp, cur_res, iterval)
                 break if check == 0
 
-                index = cur_res[:index]
                 if cur_res[:status] == :success
                     result = cur_res[:value].read_string(cur_res[:nvalue])
                     result = "[#{result}]"
-                    defers[index].resolve(JSON.parse(result, DECODE_OPTIONS)[0])
+                    values << JSON.parse(result, DECODE_OPTIONS)[0]
                 else
-                    defers[index].reject(Error.lookup(cur_res[:status]).new("Subdoc #{cb} failed for #{req.key} index #{index}"))
+                    values << Error.lookup(cur_res[:status]).new("Subdoc #{cb} failed for #{req.key} index #{cur_res[:index]}")
                 end
             end
 
-            Response.new(cb, req.key, resp[:cas])
+            Response.new(cb, req.key, resp[:cas], values)
         end
 
         def callback_cbflush(handle, type, response)
