@@ -164,6 +164,15 @@ module Libcouchbase
             get(key, quiet: true)
         end
 
+        # A helper method for returning a default value if one doesn't exist for the key
+        def fetch(key, value = nil, async: false, **opts)
+            cached_obj = get(key, quiet: true, async: false, extended: false)
+            return cached_obj if cached_obj
+            value = value || yield
+            set(key, value, opts.merge(async: false, extended: false))
+            value
+        end
+
         # Add the item to the database, but fail if the object exists already
         #
         # @param key [String, Symbol] Key used to reference the value.

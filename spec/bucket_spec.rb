@@ -80,6 +80,19 @@ describe Libcouchbase::Bucket do
             expect(@log).to eq(['woop woop', 'current woop woop'])
         end
 
+        it "should fetch a value" do
+            @reactor.run { |reactor|
+                @bucket.delete('randomunknown')
+                @log << @bucket.fetch('randomunknown', 'woop woop')
+                @log << @bucket.fetch('randomunknown') { 'testing' }
+
+                @bucket.delete('otherunknown')
+                @log << @bucket.fetch('otherunknown') { 'testing' }
+                @log << @bucket.fetch('otherunknown', 'woop woop')
+            }
+            expect(@log).to eq(['woop woop', 'woop woop', 'testing', 'testing'])
+        end
+
         it "should retry when performing a CAS operation" do
             @reactor.run { |reactor|
                 begin
