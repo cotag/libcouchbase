@@ -543,17 +543,36 @@ module Libcouchbase
         # @yieldparam [Libcouchbase::SubdocRequest] the subdocument request object used to define the request
         #
         # @example Perform a subdocument operation using a block
-        #
         #     c.subdoc(:foo) { |subdoc|
         #       subdoc.get('sub.key')
         #       subdoc.exists?('other.key')
         #       subdoc.get_count('some.array')
         #     } # => ["sub key val", true, 23]
-        def subdoc(key, extended: false, async: false, **opts)
-            sd = SubdocRequest.new(key)
-            yield sd
-            promise = @connection.subdoc(sd, opts)
-            promise = promise.then { |resp| resp.value } unless extended
+        #
+        # @example perform a subdocument operation using execute!
+        #     c.subdoc(:foo).get(:bob).execute! # => { age: 13, working: false }
+        #
+        # @example perform multiple subdocument operations using execute!
+        #     c.subdoc(:foo)
+        #      .get(:bob).get(:jane).execute! # => [{ age: 13, working: false }, { age: 47, working: true }]
+        #
+        # @example perform a subdocument mutation operation
+        #     c.subdoc(:foo).counter('bob.age', 1).execute! # => 14
+        def subdoc(key, quiet: @quiet, **opts)
+            if block_given?
+                sd = SubdocRequest.new(key, quiet)
+                yield sd
+                subdoc_execute!(sd, opts)
+            else
+                SubdocRequest.new(key, quiet, bucket: self, exec_opts: opts)
+            end
+        end
+
+        def subdoc_execute!(sd, extended: false, async: false, **opts)
+            promise = @connection.subdoc(sd, opts).then { |resp|
+                raise resp.value if resp.value.is_a?(::Exception)
+                extended ? resp : resp.value
+            }
             result promise, async
         end
 

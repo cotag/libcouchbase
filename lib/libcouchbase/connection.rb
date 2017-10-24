@@ -466,7 +466,7 @@ module Libcouchbase
             key = cmd_set_key(req, cmd, request.key)
 
             cmd[:multimode] = request.mode == :mutate ? Ext::CMDSUBDOC::SDMULTI_MODE_MUTATE : Ext::CMDSUBDOC::SDMULTI_MODE_LOOKUP
-            cmd[:specs] = request.to_specs_array
+            cmd[:specs], cmd[:nspecs] = request.to_specs_array
 
             cmd[:cas] = cas if cas
             expire_in ||= ttl
@@ -475,7 +475,7 @@ module Libcouchbase
             @reactor.schedule {
                 pointer = cmd.to_ptr
                 @requests[pointer.address] = req
-                check_error key, defer, Ext.subdoc3(@handle, pointer, cmd, subdoc: true)
+                check_error(key, defer, Ext.subdoc3(@handle, pointer, cmd), subdoc: true)
                 request.free_memory
             }
 
@@ -762,22 +762,42 @@ module Libcouchbase
         end
 
         def subdoc_common(resp, req, cb)
-            defers = req.value.response
             iterval = FFI::MemoryPointer.new(:ulong, 1)
             cur_res = Ext::SDENTRY.new
             values = []
+            index = 0
+
+            ignore = req.value.ignore
+            mutation = req.value.mode == :mutate
 
             loop do
                 check = Ext.sdresult_next(resp, cur_res, iterval)
                 break if check == 0
 
                 if cur_res[:status] == :success
-                    result = cur_res[:value].read_string(cur_res[:nvalue])
+                    count = cur_res[:nvalue]
+                    if count > 0
+                        result = cur_res[:value].read_string(count)
+                    else
+                        result = true # success response
+                    end
                     result = "[#{result}]"
                     values << JSON.parse(result, DECODE_OPTIONS)[0]
+                elsif cur_res[:status] == :subdoc_path_enoent && ignore[mutation ? cur_res[:index] : index]
+                    values << nil
                 else
-                    values << Error.lookup(cur_res[:status]).new("Subdoc #{cb} failed for #{req.key} index #{cur_res[:index]}")
+                    values << Error.lookup(cur_res[:status]).new("Subdoc #{cb} failed for #{req.key} index #{mutation ? cur_res[:index] : index}")
                 end
+
+                index += 1
+            end
+
+            # Return the single result instead of an array if single
+            is_single = resp[:rflags] & Ext::RESPFLAGS[:resp_f_sdsingle] > 0
+            if is_single
+                values = values.first
+            elsif values.empty? # multiple mutate arrays should return true (same as a single mutate)
+                values = true
             end
 
             Response.new(cb, req.key, resp[:cas], values)
@@ -822,7 +842,8 @@ module Libcouchbase
             req = @requests.delete(resp[:cookie].address)
             if req
                 begin
-                    if resp[:rc] == :success
+                    # Errors will be provided in the response
+                    if resp[:rc] == :success || resp[:rc] == :subdoc_multi_failure
                         req.defer.resolve(yield(req, callback))
                     else
                         req.defer.reject(Error.lookup(resp[:rc]).new("#{callback} failed for #{req.key}"))

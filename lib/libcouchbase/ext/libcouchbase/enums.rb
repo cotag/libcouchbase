@@ -124,7 +124,8 @@ module Libcouchbase::Ext
     :resp_f_clientgen, 2,
     :resp_f_nmvgen, 4,
     :resp_f_extdata, 8,
-    :resp_f_sdsingle, 16
+    :resp_f_sdsingle, 16,
+    :resp_f_errinfo, 0x20
   ]
 
   # (Not documented)
