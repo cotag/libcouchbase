@@ -261,6 +261,70 @@ Delete all items in the bucket. This must be enabled on the cluster to work
 bucket.flush
 ```
 
+### Subdocument queries
+
+These allow you to modify keys within documents. There is a block form.
+
+```ruby
+c.subdoc(:foo) { |subdoc|
+    subdoc.get('sub.key')
+    subdoc.exists?('other.key')
+    subdoc.get_count('some.array')
+} # => ["sub key val", true, 23]
+```
+
+There is an inline form
+
+```ruby
+c.subdoc(:foo).get(:bob).execute! # => { age: 13, working: false }
+c.subdoc(:foo)
+    .get(:bob)
+    .get(:jane)
+    .execute! # => [{ age: 13, working: false }, { age: 47, working: true }]
+```
+
+You can't perform lookups and mutations in the same request.
+
+```ruby
+# multi-mutation example
+c.subdoc(:foo)
+    .counter('bob.age', 1)
+    .dict_upsert('bob.address', {
+        number: 23
+        street: 'Daily Ave'
+        suburb: 'Some Town'
+    }).execute! # => 14 (the new counter value)
+```
+
+By default, subkeys are created if they don't exist
+
+```ruby
+c.put(:some_key, {name: 'bob'})
+c.subdoc(:some_key).dict_add('non.existant.key', {
+  random: 123,
+  hash: 'values'
+}).execute! 
+```
+
+Possible lookup operations are:
+
+* `get`
+* `exists?`
+* `get_count`
+
+Possible mutation operations
+
+* `counter` increments the subkey by integer value passed
+* `dict_upsert` replaces the subkey with value passed
+* `dict_add`
+* `array_add_first`
+* `array_add_last`
+* `array_add_unique`
+* `array_insert`
+* `replace`
+
+You can see additional docs here: https://developer.couchbase.com/documentation/server/current/sdk/subdocument-operations.html
+
 
 ### Views (Map/Reduce queries)
 
