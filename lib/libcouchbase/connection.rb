@@ -60,7 +60,7 @@ module Libcouchbase
         end
 
 
-        def initialize(hosts: '127.0.0.1', bucket: 'default', username: nil, password: nil, thread: nil, **opts)
+        def initialize(hosts: Defaults.host, bucket: Defaults.bucket, username: Defaults.username, password: Defaults.password, thread: nil, **opts)
             # build host string http://docs.couchbase.com/sdk-api/couchbase-c-client-2.5.6/group__lcb-init.html
             hosts = Array(hosts).flatten.join(',')
             connstr = "couchbase://#{hosts}/#{bucket}"

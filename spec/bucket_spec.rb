@@ -1,7 +1,8 @@
 # frozen_string_literal: true, encoding: ASCII-8BIT
 
 require 'libcouchbase'
-
+Libcouchbase::Defaults.username = 'tester'
+Libcouchbase::Defaults.password = 'password123'
 
 describe Libcouchbase::Bucket do
     before :each do
