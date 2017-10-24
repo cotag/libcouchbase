@@ -16,10 +16,10 @@ before_install:
   - sudo apt-get install libev-dev python-httplib2
   - sudo wget https://packages.couchbase.com/releases/5.0.0/couchbase-server-enterprise_5.0.0-ubuntu14.04_amd64.deb
   - sudo dpkg -i couchbase-server-enterprise_5.0.0-ubuntu14.04_amd64.deb
-  - sleep 4
+  - sleep 8
   - sudo service couchbase-server status
   - /opt/couchbase/bin/couchbase-cli cluster-init -c 127.0.0.1:8091 --cluster-username=admin --cluster-password=password --cluster-ramsize=320 --cluster-index-ramsize=256 --cluster-fts-ramsize=256 --services=data,index,query,fts
-  - sleep 4
+  - sleep 5
   - /opt/couchbase/bin/couchbase-cli server-info   -c 127.0.0.1:8091 -u admin -p password
   - /opt/couchbase/bin/couchbase-cli bucket-create -c 127.0.0.1:8091 -u admin -p password --bucket=default --bucket-type=couchbase --bucket-ramsize=160 --bucket-replica=0 --wait
   - /opt/couchbase/bin/couchbase-cli bucket-create -c 127.0.0.1:8091 -u admin -p password --bucket=test    --bucket-type=couchbase --bucket-ramsize=160 --bucket-replica=0 --enable-flush=1 --wait
