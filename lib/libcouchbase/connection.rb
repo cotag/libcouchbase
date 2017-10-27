@@ -257,8 +257,6 @@ module Libcouchbase
             defer.promise
         end
 
-        NonJsonValue = [:append, :prepend].freeze
-
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-store.html
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-durability.html
         def store(key, value, 
@@ -287,14 +285,10 @@ module Libcouchbase
             cmd[:operation] = operation
             cmd[:flags] = flags
 
-            if value.is_a?(String)
-                str_value = value
-            else
-                str_value = begin
-                    JSON.generate([value])[1..-2]
-                rescue
-                    value.respond_to?(:to_str) ? value.to_str : value.to_s
-                end
+            str_value = begin
+                [value].to_json[1...-1]
+            rescue
+                [value.respond_to?(:to_str) ? value.to_str : value.to_s].to_json[1...-1]
             end
 
             req = Request.new(cmd, defer)
