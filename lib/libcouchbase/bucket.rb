@@ -48,8 +48,6 @@ module Libcouchbase
         # @option options [true, false] :quiet (self.quiet) If set to +true+, the
         #  operation won't raise error for missing key, it will return +nil+.
         #  Otherwise it will raise a not found error.
-        # @option options [Symbol] :format the value should be stored as.
-        #   Defaults to :document
         # @option options [true, false] :assemble_hash (false) Assemble Hash for
         #   results.
         #
@@ -182,7 +180,6 @@ module Libcouchbase
         # @option options [Integer] :expire_in Expiry time for key in seconds
         # @option options [Integer, Time] :expire_at Unix epoc or time at which a key
         #   should expire
-        # @option options [Symbol] :format the value should be stored as.
         # @option options [Integer] :cas The CAS value for an object. This value is
         #   created on the server and is guaranteed to be unique for each value of
         #   a given key. This value is used to provide simple optimistic
@@ -205,10 +202,7 @@ module Libcouchbase
         # @example Store the key which will be expired in 2 seconds using absolute TTL.
         #   c.add(:foo, :bar, expire_at: Time.now.to_i + 2)
         #
-        # @example Force JSON document format for value
-        #   c.add("foo", {"bar" => "baz"}, format: :document)
-        #
-        # @example Set application specific flags (note that it will be OR-ed with format flags)
+        # @example Set application specific flags
         #   c.add("foo", "bar", flags: 0x1000)
         #
         # @example Ensure that the key will be persisted at least on the one node
@@ -227,7 +221,6 @@ module Libcouchbase
         # @option options [Integer] :expire_in Expiry time for key in seconds
         # @option options [Integer, Time] :expire_at Unix epoc or time at which a key
         #   should expire
-        # @option options [Symbol] :format the value should be stored as.
         # @option options [Integer] :cas The CAS value for an object. This value is
         #   created on the server and is guaranteed to be unique for each value of
         #   a given key. This value is used to provide simple optimistic
@@ -251,13 +244,10 @@ module Libcouchbase
         # @example Store the key which will be expired in 2 seconds using absolute TTL.
         #   c.set(:foo, :bar, expire_at: Time.now.to_i + 2)
         #
-        # @example Force JSON document format for value
-        #   c.set("foo", {"bar" => "baz"}, format: :document)
-        #
         # @example Use hash-like syntax to store the value
         #   c[:foo] = {bar: :baz}
         #
-        # @example Set application specific flags (note that it will be OR-ed with format flags)
+        # @example Set application specific flags
         #   c.set("foo", "bar", flags: 0x1000)
         #
         # @example Perform optimistic locking by specifying last known CAS version
@@ -280,7 +270,6 @@ module Libcouchbase
         # @option options [Integer] :expire_in Expiry time for key in seconds
         # @option options [Integer, Time] :expire_at Unix epoc or time at which a key
         #   should expire
-        # @option options [Symbol] :format the value should be stored as.
         # @option options [Integer] :cas The CAS value for an object. This value is
         #   created on the server and is guaranteed to be unique for each value of
         #   a given key. This value is used to provide simple optimistic
@@ -305,10 +294,7 @@ module Libcouchbase
         # @example Store the key which will be expired in 2 seconds using absolute TTL.
         #   c.replace(:foo, :bar, expire_at: Time.now.to_i + 2)
         #
-        # @example Force JSON document format for value
-        #   c.replace("foo", {"bar" => "baz"}, format: :document)
-        #
-        # @example Set application specific flags (note that it will be OR-ed with format flags)
+        # @example Set application specific flags
         #   c.replace("foo", "bar", flags: 0x1000)
         #
         # @example Ensure that the key will be persisted at least on the one node
@@ -319,12 +305,6 @@ module Libcouchbase
         ReplaceDefaults = {operation: :replace}.freeze
 
         # Append this object to the existing object
-        #
-        # @note This operation is kind of data-aware from server point of view.
-        #   This mean that the server treats value as binary stream and just
-        #   perform concatenation, therefore it won't work with +:marshal+ and
-        #   +:document+ formats, because of lack of knowledge how to merge values
-        #   in these formats.
         #
         # @param key [String, Symbol] Key used to reference the value.
         # @param value [Object] Value to be appended
@@ -348,12 +328,12 @@ module Libcouchbase
         # @raise [Libcouchbase::Error::KeyNotFound] if the key doesn't exists
         #
         # @example Simple append
-        #   c.set(:foo, "aaa", format: :plain)
+        #   c.set(:foo, "aaa")
         #   c.append(:foo, "bbb")
         #   c.get("foo")           #=> "aaabbb"
         #
         # @example Using optimistic locking. The operation will fail on CAS mismatch
-        #   resp = c.set("foo", "aaa", format: :plain)
+        #   resp = c.set("foo", "aaa")
         #   c.append("foo", "bbb", cas: resp.cas)
         #
         # @example Ensure that the key will be persisted at least on the one node
@@ -364,12 +344,6 @@ module Libcouchbase
         AppendDefaults = {operation: :append}.freeze
 
         # Prepend this object to the existing object
-        #
-        # @note This operation is kind of data-aware from server point of view.
-        #   This mean that the server treats value as binary stream and just
-        #   perform concatenation, therefore it won't work with +:marshal+ and
-        #   +:document+ formats, because of lack of knowledge how to merge values
-        #   in these formats.
         #
         # @param key [String, Symbol] Key used to reference the value.
         # @param value [Object] Value to be appended
@@ -393,12 +367,12 @@ module Libcouchbase
         # @raise [Libcouchbase::Error::KeyNotFound] if the key doesn't exists
         #
         # @example Simple prepend
-        #   c.set(:foo, "aaa", format: :plain)
+        #   c.set(:foo, "aaa")
         #   c.prepend(:foo, "bbb")
         #   c.get("foo")           #=> "bbbaaa"
         #
         # @example Using optimistic locking. The operation will fail on CAS mismatch
-        #   resp = c.set("foo", "aaa", format: :plain)
+        #   resp = c.set("foo", "aaa")
         #   c.prepend("foo", "bbb", cas: resp.cas)
         #
         # @example Ensure that the key will be persisted at least on the one node
@@ -506,7 +480,7 @@ module Libcouchbase
         #   c.delete("foo", quiet: false)   #=> will raise Libcouchbase::Error::KeyNotFound
         #
         # @example Delete the key with version check
-        #   res = c.set("foo", "bar")       #=> #<struct Libcouchbase::Response callback=:callback_set, key="foo", cas=1975457268957184, value="bar", metadata={:format=>:document, :flags=>0}>
+        #   res = c.set("foo", "bar")       #=> #<struct Libcouchbase::Response callback=:callback_set, key="foo", cas=1975457268957184, value="bar", metadata={:flags=>0}>
         #   c.delete("foo", cas: 123456)    #=> will raise Libcouchbase::Error::KeyExists
         #   c.delete("foo", cas: res.cas)   #=> true
         def delete(key, async: false, quiet: true, **opts)

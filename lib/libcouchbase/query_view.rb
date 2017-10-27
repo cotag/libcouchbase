@@ -96,7 +96,7 @@ module Libcouchbase
             if @include_docs && row[:docresp]
                 doc = row[:docresp]
                 raw_string = doc[:value].null? ? '' : doc[:value].read_string(doc[:nvalue])
-                resp.value, meta[:format] = @connection.parse_document(raw_string, flags: doc[:itmflags])
+                resp.value = @connection.parse_document(raw_string)
                 meta[:flags] = doc[:itmflags]
             end
 

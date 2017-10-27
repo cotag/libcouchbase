@@ -259,19 +259,8 @@ module Libcouchbase
 
         NonJsonValue = [:append, :prepend].freeze
 
-        # These are client specific
-        FormatFlags = {
-            document: 0,
-            marshal: 1,
-            plain: 2
-        }
-        SupportedFormats = FormatFlags.keys.freeze
-        FormatFlags.merge!(FormatFlags.invert)
-        FormatFlags.freeze
-
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-store.html
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-durability.html
-        # NOTE:: first 2 bits of the flags are reserved for document format
         def store(key, value, 
                 defer: nil,
                 operation: :set,
@@ -280,12 +269,10 @@ module Libcouchbase
                 ttl: nil,
                 persist_to: 0,
                 replicate_to: 0,
-                format: :document,
                 cas: nil,
                 flags: 0,
         **opts)
             raise 'not connected' unless @handle
-            raise 'format not supported' unless SupportedFormats.include?(:document)
             defer ||= @reactor.defer
 
             # Check if this should be a durable operation
@@ -298,26 +285,16 @@ module Libcouchbase
                 cmd = Ext::CMDSTORE.new
             end
             cmd[:operation] = operation
+            cmd[:flags] = flags
 
-            # Check if we are storing a string or partial value
-            if NonJsonValue.include?(operation)
-                format = :plain
+            if value.is_a?(String)
+                str_value = value
             else
-                # Preserve any application specific flags and set the format flags
-                flag_mask = flags & 3
-                flags = flags ^ flag_mask
-                cmd[:flags] = flags | FormatFlags[format]
-            end
-
-            # Move the data into the correct format for storage
-            if format == :marshal
-                str_value = Marshal.dump(value)
-            elsif format == :plain
-                # Use coercion as it was intended
-                str_value = value.respond_to?(:to_str) ? value.to_str : value.to_s
-            else
-                # This will raise an error if we're not storing valid json
-                str_value = JSON.generate([value])[1..-2]
+                str_value = begin
+                    JSON.generate([value])[1..-2]
+                rescue
+                    value.respond_to?(:to_str) ? value.to_str : value.to_s
+                end
             end
 
             req = Request.new(cmd, defer)
@@ -339,13 +316,12 @@ module Libcouchbase
         end
 
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-get.html
-        def get(key, defer: nil, lock: false, cas: nil, format: nil, **opts)
+        def get(key, defer: nil, lock: false, cas: nil, **opts)
             raise 'not connected' unless @handle
             defer ||= @reactor.defer
 
             cmd = Ext::CMDGET.new
             req = Request.new(cmd, defer)
-            req.value = format
             key = cmd_set_key(req, cmd, key)
             cmd[:cas] = cas if cas
 
@@ -584,24 +560,13 @@ module Libcouchbase
             QueryN1QL.new(self, @reactor, n1ql, **opts)
         end
 
-        def parse_document(raw_string, flags: 0, hint: nil)
-            flag_mask = flags & 3
-            format = hint || FormatFlags[flag_mask] # Defaults to document
+        def parse_document(raw_string)
             val = begin
-                case format
-                when :marshal
-                    Marshal.load(raw_string)
-                when :document
-                    JSON.parse("[#{raw_string}]", DECODE_OPTIONS)[0]
-                else
-                    format = :plain
-                    raw_string
-                end
-            rescue => e
-                format = :plain
+                JSON.parse("[#{raw_string}]", DECODE_OPTIONS)[0]
+            rescue
                 raw_string
             end
-            [val, format]
+            val
         end
 
 
@@ -689,8 +654,8 @@ module Libcouchbase
             resp = Ext::RESPGET.new response
             resp_callback_common(resp, :callback_get) do |req, cb|
                 raw_string = resp[:value].read_string(resp[:nvalue])
-                val, format = parse_document(raw_string, flags: resp[:itmflags], hint: req.value)
-                Response.new(cb, req.key, resp[:cas], val, {format: format, flags: resp[:itmflags]})
+                val = parse_document(raw_string)
+                Response.new(cb, req.key, resp[:cas], val, {flags: resp[:itmflags]})
             end
         end
 
