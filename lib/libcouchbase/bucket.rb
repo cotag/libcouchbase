@@ -571,11 +571,17 @@ module Libcouchbase
             id ||= attrs.delete(:_id)
             id = id.to_s.sub(/^_design\//, '')
 
-            result @connection.http("/_design/#{id}",
+            prom = @connection.http("/_design/#{id}",
                 method: :put,
                 body: attrs,
                 type: :view
-            ), async
+            ).then { |res|
+                # Seems to require a moment before the view is usable
+                @reactor.sleep 100
+                res
+            }
+
+            result prom, async
         end
 
         # Delete design doc with given id and optional revision.
