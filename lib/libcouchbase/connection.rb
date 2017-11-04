@@ -780,11 +780,7 @@ module Libcouchbase
                         headers[key] = value
                     end
                 end
-                body = if resp[:nbody] > 0
-                    resp[:body].read_string(resp[:nbody])
-                else
-                    ''
-                end
+                body = body_text(resp)
 
                 if (200...300).include? resp[:htstatus]
                     HttpResponse.new(cb, resp[:htstatus], headers, body, req.value)
@@ -835,7 +831,7 @@ module Libcouchbase
                 error_klass = Error.lookup(row_data[:rc])
                 if error_klass == Error::HttpError
                     http_resp = row_data[:htresp]
-                    view.error error_klass.new(http_resp[:body].read_string(http_resp[:nbody]))
+                    view.error error_klass.new(body_text(http_resp))
                 else
                     view.error error_klass.new
                 end
@@ -871,10 +867,19 @@ module Libcouchbase
                 error_klass = Error.lookup(row_data[:rc])
                 if error_klass == Error::HttpError
                     http_resp = row_data[:htresp]
-                    view.error error_klass.new(http_resp[:body].read_string(http_resp[:nbody]))
+                    view.error error_klass.new(body_text(http_resp))
                 else
                     view.error error_klass.new
                 end
+            end
+        end
+
+        # Extracts the body content of a HTTP response
+        def body_text(http_resp)
+            if http_resp[:nbody] > 0
+                http_resp[:body].read_string(http_resp[:nbody])
+            else
+                ''
             end
         end
     end
