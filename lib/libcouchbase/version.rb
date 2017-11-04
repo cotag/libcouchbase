@@ -1,5 +1,5 @@
 # frozen_string_literal: true, encoding: ASCII-8BIT
 
 module Libcouchbase
-    VERSION = '1.2.2'
+    VERSION = '1.2.3'
 end
