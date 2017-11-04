@@ -9,6 +9,19 @@ An alternative to the official [couchbase-client](https://github.com/couchbase/c
 
 This is a low level wrapper around libcouchbase. For a more friendly ActiveModel interface see [couchbase-orm](https://github.com/acaprojects/couchbase-orm)
 
+## Couchbase 5 Changes
+
+The Couchbase 5 Admin Console blows away flags on documents if you edit them in the interface.
+Flags were being used to store document formats, however these were mainly implemented for compatibility with the defunct official client.
+
+
+To prevent this being an issue we've made the following changes from version 1.2 of this library:
+
+1. All writes will result in valid JSON being saved to the database
+   * No more `raw strings` they will be saved as `"raw strings"`
+   * Existing raw strings will still be read correctly
+2. Since there are no more raw strings, append / prepend are no longer needed (not that we ever used them)
+
 
 ## Runtime Support:
 
@@ -97,22 +110,6 @@ bucket.get("missing-key")                    #=> raise Libcouchbase::Error::KeyN
 bucket.get("missing-key", :quiet => true)    #=> nil
 ```
 
-The library supports three different formats for representing values:
-
-* `:document` (default) format supports most of ruby types which could
-  be mapped to JSON data (hashes, arrays, string, numbers).
-
-* `:plain` This format avoids any conversions to be applied to your
-  data, but your data should be passed as String. This is useful for
-  building custom algorithms or formats.
-
-* `:marshal` Use this format if you'd like to transparently serialize your
-  ruby object with standard `Marshal.dump` and `Marshal.load` methods
-
-```ruby
-bucket.put(:some_object, my_object, format: :marshal)
-```
-
 
 The library supports both synchronous and asynchronous operations.
 In asynchronous mode all operations will return control to caller
@@ -125,8 +122,8 @@ to execute in parallel.
 ```ruby
 # Perform operations in Async and then wait for the results
 results = []
-results << bucket.get(:key1)
-results << bucket.get(:key2)
+results << bucket.get(:key1, async: true)
+results << bucket.get(:key2, async: true)
 bucket.wait_results(results)          #=> ['key1_val', 'key2_val']
 
 # Is equivalent to:
@@ -153,7 +150,7 @@ result = bucket.get("foo", extended: true)
 result.key      #=> "foo"
 result.value    #=> {some: "value"}
 result.cas      #=> 123445
-result.metadata #=> {format: :document, flags: 0}
+result.metadata #=> {flags: 0}
 ```
 
 
@@ -195,7 +192,7 @@ options as set command above.
 
 ```ruby
 bucket.add("foo", "bar")
-bucket.add("foo", "bar", ttl: 30, format: :plain)
+bucket.add("foo", "bar", ttl: 30)
 ```
 
 
@@ -206,20 +203,6 @@ options as set command above.
 
 ```ruby
 bucket.replace("foo", "bar")
-```
-
-
-### Prepend/Append
-
-These commands are meaningful when you are using the `:plain` value format,
-because the concatenation is performed by server which has no idea how
-to merge to JSON values or values in ruby Marshal format.
-
-```ruby
-bucket.set(:foo, "world", format: :plain)
-bucket.append(:foo, "!")
-bucket.prepend(:foo, "Hello, ")
-bucket.get(:foo)                    #=> "Hello, world!"
 ```
 
 
@@ -401,19 +384,21 @@ To execute view you need to fetch it from design document `_design/blog`:
 If N1QL indexes have been created, then you can query them
 
 ```ruby
-n1ql = bucket.n1ql
-n1ql.select('*').from(:default).where('port == 10001')
-res = n1ql.results
+results = bucket.n1ql
+  .select('*')
+  .from(:default)
+  .where('port == 10001')
+  .results
 
 # Results are lazily loaded by the enumerator
-# Results are stored for re-use until `res` goes out of scope
+# Results are stored for re-use until `results` goes out of scope
 # Actual database query happens here
-res.each do |row|
+results.each do |row|
     # Each row is a Hash of the data requested
 end
 
 # You can however stream results to save memory and the results are not saved
-res.stream do |row|
+results.stream do |row|
     # Row is cleaned up as soon as possible
 end
 ```
@@ -424,17 +409,17 @@ end
 If Full Text Search indexes have been created, then you can query them
 
 ```ruby
-res = bucket.full_text_search(:index_name, 'query')
+results = bucket.full_text_search(:index_name, 'query')
 
 # Results are lazily loaded by the enumerator
 # Results are stored for re-use until `res` goes out of scope
 # Actual database query happens here
-res.each do |row|
+results.each do |row|
     # Each row is a Hash of the data requested
 end
 
 # You can however stream results to save memory and the results are not saved
-res.stream do |row|
+results.stream do |row|
     # Row is cleaned up as soon as possible
 end
 ```
