@@ -31,6 +31,10 @@ Gem::Specification.new do |gem|
     gem.files         = `git ls-files`.split("\n")
     gem.test_files    = `git ls-files -- {test,spec,features}/*`.split("\n")
 
+    if File.exist? 'ext/libcouchbase.dll'
+        gem.files += ['ext/libcouchbase.dll', 'ext/libcouchbase_libuv.dll']
+    end 
+
     # Add the submodule to the gem
     relative_path = File.expand_path("../", __FILE__) + '/'
     `git submodule --quiet foreach pwd`.split($\).each do |submodule_path|

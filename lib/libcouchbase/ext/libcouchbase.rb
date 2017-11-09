@@ -4,12 +4,12 @@ require 'libcouchbase/ext/libcouchbase/enums'
 module Libcouchbase::Ext
   extend FFI::Library
   if FFI::Platform.windows?
-    ffi_lib ::File.expand_path("../../../../ext/bin/libcouchbase.#{FFI::Platform::LIBSUFFIX}", __FILE__)
-    require 'libcouchbase/ext/libcouchbase_iocp'
+    ffi_lib ::File.expand_path("../../../../ext/libcouchbase.dll", __FILE__)
   else
     ffi_lib ::File.expand_path("../../../../ext/libcouchbase/build/lib/libcouchbase.#{FFI::Platform::LIBSUFFIX}", __FILE__)
-    require 'libcouchbase/ext/libcouchbase_libuv'
   end
+
+  require 'libcouchbase/ext/libcouchbase_libuv'
 
   autoload :T, 'libcouchbase/ext/libcouchbase/t'
   autoload :HttpRequestT, 'libcouchbase/ext/libcouchbase/http_request_t'

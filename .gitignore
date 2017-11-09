@@ -16,3 +16,5 @@ bin
 Gemfile-custom
 
 *.gem
+
+*.dll

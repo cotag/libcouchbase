@@ -27,8 +27,9 @@ end
 
 desc 'Compile libcouchbase from submodule'
 if FFI::Platform.windows?
-    task :compile => ["ext/bin/libcouchbase.#{FFI::Platform::LIBSUFFIX}"]
-    CLOBBER.include("ext/bin/libcouchbase.#{FFI::Platform::LIBSUFFIX}")
+    task :compile do
+        puts "See windows_build.md for build instructions"
+    end
 else
     task :compile => ["ext/libcouchbase/build/lib/libcouchbase_libuv.#{FFI::Platform::LIBSUFFIX}"]
     CLOBBER.include("ext/libcouchbase/build/lib/libcouchbase_libuv.#{FFI::Platform::LIBSUFFIX}")

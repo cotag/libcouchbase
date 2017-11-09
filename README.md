@@ -64,7 +64,7 @@ Tested on the following Operating Systems:
 * OSX / MacOS
 * Linux
 * Windows
-  * NOTE:: windows support is not complete. This message will be removed once it is fully functional
+  * Ruby x64 2.4+ with MSYS2 DevKit
 
 
 ## Usage
