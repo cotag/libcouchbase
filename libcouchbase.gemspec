@@ -62,4 +62,7 @@ Gem::Specification.new do |gem|
             gem.files += submodule_files_paths
         end
     end
+
+    # Remove sym link (blows up on windows)
+    gem.files.delete('ext/libcouchbase/configure.pl')
 end
