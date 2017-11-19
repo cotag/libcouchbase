@@ -485,7 +485,7 @@ module Libcouchbase
         #
         # @return [Libcouchbase::DesignDocs]
         def design_docs(**opts)
-            DesignDocs.new(self, @connection, method(:result), **opts)
+            DesignDocs.new(self, @connection, proc { |promise, async| result(promise, async) }, **opts)
         end
 
         # Returns an enumerable for the results in a view.
@@ -675,7 +675,7 @@ module Libcouchbase
 
             current = ::Libuv::Reactor.current
             if current && current.running?
-                co promise
+                promise.value
             elsif Object.const_defined?(:EventMachine) && EM.reactor_thread?
                 # Assume this is being run in em-synchrony
                 f = Fiber.current
@@ -749,7 +749,7 @@ module Libcouchbase
 
                         attempt = 0
                         begin
-                            co @connection.connect
+                            @connection.connect.value
                         rescue Libcouchbase::Error::ConnectError => e
                             attempt += 1
                             if attempt < 3
@@ -786,7 +786,7 @@ module Libcouchbase
 
                     attempt = 0
                     begin
-                        co @connection.connect
+                        @connection.connect.value
                     rescue Libcouchbase::Error::ConnectError => e
                         attempt += 1
                         if attempt < 3
