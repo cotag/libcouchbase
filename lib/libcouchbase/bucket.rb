@@ -684,7 +684,7 @@ module Libcouchbase
 
                 @connection.reactor.next_tick do
                     begin
-                        response = co(promise)
+                        response = promise.value
                     rescue Exception => e
                         error = e
                     end
@@ -707,7 +707,7 @@ module Libcouchbase
                 request.synchronize {
                     @connection.reactor.next_tick do
                         begin
-                            response = co(promise)
+                            response = promise.value
                         rescue Exception => e
                             error = e
                         end

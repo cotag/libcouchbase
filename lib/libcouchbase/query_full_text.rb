@@ -76,7 +76,7 @@ module Libcouchbase
             # TODO:: this could cause results to be returned out of order
             if @include_docs
                 @doc_count += 1
-                doc = co @connection.get(resp.key)
+                doc = @connection.get(resp.key).value
                 resp.value = doc.value
                 resp.cas = doc.cas
                 resp.metadata.merge! doc.metadata
