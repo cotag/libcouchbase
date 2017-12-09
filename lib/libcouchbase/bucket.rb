@@ -435,8 +435,8 @@ module Libcouchbase
         end
 
         # Touch a key, changing its CAS and optionally setting a timeout
-        def touch(async: false, **opts)
-            result @connection.touch(**opts), async
+        def touch(key, async: false, **opts)
+            result @connection.touch(key, **opts), async
         end
 
         # Perform subdocument operations on a key.
