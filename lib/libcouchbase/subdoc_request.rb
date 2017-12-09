@@ -73,12 +73,22 @@ class Libcouchbase::SubdocRequest
     end
 
     [
-        :replace, :dict_add, :dict_upsert, :array_add_first, :array_add_last,
-        :array_add_unique, :array_insert, :counter
+        :dict_add, :dict_upsert, :array_add_first, :array_add_last, :array_add_unique, :counter
     ].each do |cmd|
         command = :"sdcmd_#{cmd}"
         define_method cmd do |path, value, create_intermediates: true, **opts|
             spec = new_spec(false, path, command, :mutate, create_intermediates)
+            set_value(spec, value)
+            self
+        end
+    end
+
+    [
+        :replace, :array_insert
+    ].each do |cmd|
+        command = :"sdcmd_#{cmd}"
+        define_method cmd do |path, value, **opts|
+            spec = new_spec(false, path, command, :mutate, false)
             set_value(spec, value)
             self
         end
