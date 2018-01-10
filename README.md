@@ -92,16 +92,16 @@ bucket = Libcouchbase::Bucket.new(hosts: '127.0.0.1', bucket: 'default', passwor
 bucket = Libcouchbase::Bucket.new(hosts: ['cb1.org', 'cb2.org'], bucket: 'app_data', password: 'goodluck')
 ```
 
-By default connections use `:quiet` mode. This mean it won't raise
+Connections can be configured to use `:quiet` mode. This mean it won't raise
 exceptions when the given key does not exist:
 
 ```ruby
+bucket.quiet = true
 bucket.get(:missing_key)            #=> nil
 ```
 
-It could be useful when you are trying to make you code a bit efficient
-by avoiding exception handling. (See `#add` and `#replace` operations).
-You can turn on these exceptions by passing `:quiet => false` when you
+It could be useful avoiding exception handling. (See `#add` and `#replace` operations).
+You can turn off these exceptions by passing `:quiet => true` when you
 are instantiating the connection or change corresponding attribute:
 
 ```ruby
@@ -187,8 +187,17 @@ bucket.touch(:foo, expire_at: (Time.now + 30))
 
 ### Set
 
-The add command will fail if the key already exists. It accepts the same
-options as set command above.
+The set command will unconditionally store an object in couchbase.
+
+```ruby
+bucket.add("foo", "bar")
+bucket.add("foo", "bar", ttl: 30)
+```
+
+
+### Add
+
+The add command will fail if the key already exists.
 
 ```ruby
 bucket.add("foo", "bar")
@@ -198,8 +207,7 @@ bucket.add("foo", "bar", ttl: 30)
 
 ### Replace
 
-The replace command will fail if the key already exists. It accepts the same
-options as set command above.
+The replace command will fail if the key doesn't already exist.
 
 ```ruby
 bucket.replace("foo", "bar")
