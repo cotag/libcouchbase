@@ -111,8 +111,8 @@ describe Libcouchbase::Connection do
         @reactor.run { |reactor|
             connection = Libcouchbase::Connection.new
             connection.connect.then do
-                expect(co(connection.configure(:operation_timeout, 1500000))).to be(connection)
-                expect { co(connection.configure(:bob, 1500000)) }.to raise_error(Libcouchbase::Error)
+                expect(connection.configure(:operation_timeout, 1500000).value).to be(connection)
+                expect { connection.configure(:bob, 1500000).value }.to raise_error(Libcouchbase::Error)
                 @log << :success
                 connection.destroy
             end
@@ -126,7 +126,7 @@ describe Libcouchbase::Connection do
             begin
                 connection = Libcouchbase::Connection.new
                 co connection.connect
-                @log = co(connection.get_server_list)
+                @log = connection.get_server_list.value
             ensure
                 connection.destroy
             end
@@ -163,9 +163,9 @@ describe Libcouchbase::Connection do
                     connection.touch('testtouch', expire_in: 1).then(proc {
                         @log << 'set'
                         sleep 2
-                        connection.get('testtouch').catch(proc {|err|
+                        connection.get('testtouch').catch do |err|
                             @log << err.is_a?(Libcouchbase::Error::KeyNotFound)
-                        })
+                        }
                     })
                 }, proc { |error|
                     @log << error
