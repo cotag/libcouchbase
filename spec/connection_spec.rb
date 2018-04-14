@@ -125,7 +125,7 @@ describe Libcouchbase::Connection do
         @reactor.run { |reactor|
             begin
                 connection = Libcouchbase::Connection.new
-                co connection.connect
+                connection.connect.value
                 @log = connection.get_server_list.value
             ensure
                 connection.destroy
