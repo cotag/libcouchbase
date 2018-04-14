@@ -165,7 +165,7 @@ describe Libcouchbase::Connection do
                         sleep 2
                         connection.get('testtouch').catch do |err|
                             @log << err.is_a?(Libcouchbase::Error::KeyNotFound)
-                        }
+                        end
                     })
                 }, proc { |error|
                     @log << error
