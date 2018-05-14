@@ -836,6 +836,16 @@ module Libcouchbase::Ext
     :generic_constraint_err, 82,
     :nameserver_error, 83,
     :not_authorized, 84,
+    :subdoc_invalid_combo, 85,
+    :subdoc_multi_path_failure, 86,
+    :subdoc_success_deleted, 87,
+    :subdoc_xattr_invalid_flag_combo, 88,
+    :subdoc_xattr_invalid_key_combo, 89,
+    :subdoc_xattr_unknown_macro, 90,
+    :subdoc_xattr_unknown_vattr, 91,
+    :subdoc_xattr_cant_modify_vattr, 92,
+    :subdoc_multi_path_failure_deleted, 93,
+    :subdoc_invalid_xattr_order, 94,
     :max_error, 4096
   ]
 
