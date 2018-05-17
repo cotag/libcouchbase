@@ -2,7 +2,12 @@
 
 module Libcouchbase
     class N1QL
-        Ordering = [:select, :insert_into, :delete_from, :update, :from, :use_keys, :unnest, :join, :where, :group_by, :order_by, :limit, :offset, :upsert_into, :create_index, :merge_into]
+        Ordering = [
+            :build_index, :create_index, :drop_index, :create_primary_index,
+            :drop_primary_index, :grant, :on, :to, :infer, :select, :insert_into,
+            :delete_from, :update, :from, :with, :use_keys, :unnest, :join, :where,
+            :group_by, :order_by, :limit, :offset, :upsert_into, :merge_into
+        ]
 
         def initialize(bucket, explain: false, **options)
             @bucket = bucket
