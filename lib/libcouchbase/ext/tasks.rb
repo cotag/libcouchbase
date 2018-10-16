@@ -25,7 +25,7 @@ end
 file 'ext/libcouchbase/build/makefile' => 'ext/libcouchbase/build' do
     result = nil
     Dir.chdir("ext/libcouchbase") do |path|
-        result = system './cmake/configure', '-with-libuv', ::File.expand_path('../../', ::Libuv::Ext.path_to_internal_libuv)
+        result = system './cmake/configure', '-disable-couchbasemock', '-with-libuv', ::File.expand_path('../../', ::Libuv::Ext.path_to_internal_libuv)
     end
     raise 'could not find cmake on path' unless result
 end
