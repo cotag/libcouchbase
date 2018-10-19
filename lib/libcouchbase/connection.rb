@@ -140,6 +140,13 @@ module Libcouchbase
                     Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_sdmutate], callback(:callback_sdmutate))
                     Ext.install_callback3(@handle, Ext::CALLBACKTYPE[:callback_cbflush],  callback(:callback_cbflush)) if @flush_enabled
 
+                    # Configure safe retries
+                    # LCB_RETRYOPT_CREATE = Proc.new { |mode, policy| ((mode << 16) | policy) }
+                    # val = LCB_RETRYOPT_CREATE(LCB_RETRY_ON_SOCKERR, LCB_RETRY_CMDS_SAFE);
+                    # ::Libcouchbase::Ext.cntl_setu32(handle, LCB_CNTL_RETRYMODE, val)
+                    retry_config = (1 << 16) | 3
+                    ::Libcouchbase::Ext.cntl_setu32(@handle, 0x24, (1 << 16) | 3)
+
                     # Connect to the database
                     err = Ext.connect(@handle)
                     if err != :success
@@ -204,7 +211,7 @@ module Libcouchbase
                     nodes = Ext.get_num_nodes(@handle)
                     list = []
                     count = 0
-                    
+
                     while count <= nodes
                         list << Ext.get_node(@handle, :node_data, count)
                         count += 1
@@ -251,7 +258,7 @@ module Libcouchbase
 
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-store.html
         # http://docs.couchbase.com/sdk-api/couchbase-c-client-2.6.2/group__lcb-durability.html
-        def store(key, value, 
+        def store(key, value,
                 defer: nil,
                 operation: :set,
                 expire_in: nil,
@@ -297,7 +304,7 @@ module Libcouchbase
                 @requests[pointer.address] = req
                 check_error(key, defer, durable ? Ext.storedur3(@handle, pointer, cmd) : Ext.store3(@handle, pointer, cmd))
             }
-            
+
             defer.promise
         end
 
@@ -794,7 +801,8 @@ module Libcouchbase
                     if resp[:rc] == :success || resp[:rc] == :subdoc_multi_failure
                         req.defer.resolve(yield(req, callback))
                     else
-                        req.defer.reject(Error.lookup(resp[:rc]).new("#{callback} failed for #{req.key}"))
+                        lookup = resp[:rc]
+                        req.defer.reject(Error.lookup(lookup).new("#{callback} failed for #{req.key} with #{lookup}"))
                     end
                 rescue => e
                     req.defer.reject(e)
