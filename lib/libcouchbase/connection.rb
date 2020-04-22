@@ -631,7 +631,7 @@ module Libcouchbase
                 @bootstrap_defer.resolve(self)
                 @bootstrap_defer = nil
             else
-                @bootstrap_defer.reject(Error.lookup(error_code).new("bootstrap failed"))
+                @bootstrap_defer.reject(Error.lookup(error_code).new("bootstrap failed #{error_code}: #{error_name}"))
                 handle_destroyed
             end
         end
