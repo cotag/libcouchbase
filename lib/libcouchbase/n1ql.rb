@@ -23,6 +23,14 @@ module Libcouchbase
         attr_accessor *Ordering
         attr_accessor :explain
         attr_reader   :bucket, :connection
+        attr_accessor :string
+
+        def string(val = nil)
+            return @string if val.nil?
+
+            @string = val.to_s
+            self
+        end
 
         def explain(val = nil)
             return @explain if val.nil?
@@ -45,6 +53,8 @@ module Libcouchbase
         def to_s
             res = String.new
             res << "EXPLAIN\n" if @explain
+            return (res << @string) if @string
+
             Ordering.each do |statement|
                 val = public_send statement
                 unless val.nil?
