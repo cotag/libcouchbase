@@ -25,7 +25,7 @@ module Libcouchbase
         attr_reader   :bucket, :connection
         attr_accessor :string
 
-        def string(val = nil)
+        def query(val = nil)
             return @string if val.nil?
 
             @string = val.to_s

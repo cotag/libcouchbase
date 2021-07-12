@@ -16,7 +16,7 @@ unless defined?(RUBY_ENGINE) && RUBY_ENGINE == 'jruby'
             rescue => e
             end
         end
-        sleep 2 if connections.length.positive?
+        sleep 2 if connections.length > 0
         connections.each { |c| c.reactor.stop }
     end
 end
@@ -321,10 +321,10 @@ module Libcouchbase
             # exptime == the lock expire time
             if lock
                 time = lock == true ? 30 : lock.to_i
-                time = 30 if time > 30 || time.negative?
+                time = 30 if time > 30 || time < 0
 
                 # We only want to lock if time is between 1 and 30
-                if time.positive?
+                if time > 0
                     cmd[:exptime] = time
                     cmd[:lock] = 1
                 end
@@ -730,11 +730,11 @@ module Libcouchbase
 
             loop do
                 check = Ext.sdresult_next(resp, cur_res, iterval)
-                break if check.zero?
+                break if check == 0
 
                 if cur_res[:status] == :success
                     count = cur_res[:nvalue]
-                    if count.positive?
+                    if count > 0
                         result = cur_res[:value].read_string(count)
                     else
                         result = true # success response
@@ -751,7 +751,7 @@ module Libcouchbase
             end
 
             # Return the single result instead of an array if single
-            is_single = (resp[:rflags] & Ext::RESPFLAGS[:resp_f_sdsingle]).positive?
+            is_single = (resp[:rflags] & Ext::RESPFLAGS[:resp_f_sdsingle]) > 0
             if is_single
                 values = values.first
             elsif values.empty? # multiple mutate arrays should return true (same as a single mutate)
@@ -820,7 +820,7 @@ module Libcouchbase
             view = @requests[row_data[:cookie].address]
 
             if row_data[:rc] == :success
-                if (row_data[:rflags] & Ext::RESPFLAGS[:resp_f_final]).positive?
+                if (row_data[:rflags] & Ext::RESPFLAGS[:resp_f_final]) > 0
                     # We can assume this is JSON
                     view.received_final(JSON.parse(row_data[:value].read_string(row_data[:nvalue]), DECODE_OPTIONS))
                 else
@@ -856,7 +856,7 @@ module Libcouchbase
             if row_data[:rc] == :success
                 value = JSON.parse(row_text(row_data), DECODE_OPTIONS)
 
-                if (row_data[:rflags] & Ext::RESPFLAGS[:resp_f_final]).positive?
+                if (row_data[:rflags] & Ext::RESPFLAGS[:resp_f_final]) > 0
                     # We can assume this is JSON
                     view.received_final(value)
                 else
@@ -877,7 +877,7 @@ module Libcouchbase
 
         # Extracts the row content of a response
         def row_text(row_data)
-            if (row_data[:nrow]).positive?
+            if row_data[:nrow] > 0
                 row_data[:row].read_string(row_data[:nrow])
             else
                 ''
@@ -886,7 +886,7 @@ module Libcouchbase
 
         # Extracts the body content of a HTTP response
         def body_text(http_resp)
-            if (http_resp[:nbody]).positive?
+            if http_resp[:nbody] > 0
                 http_resp[:body].read_string(http_resp[:nbody])
             else
                 ''
