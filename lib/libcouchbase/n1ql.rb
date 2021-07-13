@@ -6,7 +6,7 @@ module Libcouchbase
             :build_index, :create_index, :drop_index, :create_primary_index,
             :drop_primary_index, :grant, :on, :to, :infer, :select, :insert_into,
             :delete_from, :update, :from, :with, :use_keys, :unnest, :join, :where,
-            :group_by, :order_by, :limit, :offset, :upsert_into, :merge_into
+            :group_by, :order_by, :limit, :offset, :upsert_into, :merge_into, :query
         ]
 
         def initialize(bucket, explain: false, **options)
@@ -45,6 +45,8 @@ module Libcouchbase
         def to_s
             res = String.new
             res << "EXPLAIN\n" if @explain
+            return (res << @query) if @query
+
             Ordering.each do |statement|
                 val = public_send statement
                 unless val.nil?

@@ -18,3 +18,5 @@ Gemfile-custom
 *.gem
 
 *.dll
+
+vendor/*

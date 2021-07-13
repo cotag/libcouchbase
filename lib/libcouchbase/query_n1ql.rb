@@ -3,7 +3,7 @@
 module Libcouchbase
     class QueryN1QL
         N1P_QUERY_STATEMENT = 1
-
+        N1P_CONSISTENCY_REQUEST = 2
 
         def initialize(connection, reactor, n1ql, **opts)
             @connection = connection
@@ -13,9 +13,7 @@ module Libcouchbase
             @request_handle = FFI::MemoryPointer.new :pointer, 1
         end
 
-
         attr_reader :connection, :n1ql
-
 
         def get_count(metadata)
             metadata[:metrics][:resultCount]
@@ -46,27 +44,31 @@ module Libcouchbase
 
                 @cmd = Ext::CMDN1QL.new
                 @params = Ext.n1p_new
-                err = Ext.n1p_setquery(@params, @query_text, @query_text.bytesize, N1P_QUERY_STATEMENT)
+                err = Ext.n1p_setconsistency(@params, N1P_CONSISTENCY_REQUEST)
                 if err == :success
-
-                    err = Ext.n1p_mkcmd(@params, @cmd)
+                    err = Ext.n1p_setquery(@params, @query_text, @query_text.bytesize, N1P_QUERY_STATEMENT)
                     if err == :success
 
-                        pointer = @cmd.to_ptr
-                        @connection.requests[pointer.address] = self
+                        err = Ext.n1p_mkcmd(@params, @cmd)
+                        if err == :success
+                            pointer = @cmd.to_ptr
+                            @connection.requests[pointer.address] = self
 
-                        @cmd[:callback] = @connection.get_callback(:n1ql_callback)
-                        @cmd[:handle] = @request_handle
+                            @cmd[:callback] = @connection.get_callback(:n1ql_callback)
+                            @cmd[:handle] = @request_handle
 
-                        err = Ext.n1ql_query(@connection.handle, pointer, @cmd)
-                        if err != :success
+                            err = Ext.n1ql_query(@connection.handle, pointer, @cmd)
+                            if err != :success
                             error(Error.lookup(err).new('full text search not scheduled'))
+                            end
+                        else
+                            error(Error.lookup(err).new('failed to build full text search command'))
                         end
                     else
-                        error(Error.lookup(err).new('failed to build full text search command'))
+                        error(Error.lookup(err).new('failed to build full text search query structure'))
                     end
                 else
-                    error(Error.lookup(err).new('failed to build full text search query structure'))
+                    error(Error.lookup(err).new('failed set consistency value'))
                 end
             }
         end
