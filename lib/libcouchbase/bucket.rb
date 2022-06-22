@@ -474,7 +474,7 @@ module Libcouchbase
         end
 
         def subdoc_execute!(sd, extended: false, async: false, **opts)
-            promise = @connection.subdoc(sd, opts).then { |resp|
+            promise = @connection.subdoc(sd, **opts).then { |resp|
                 raise resp.value if resp.value.is_a?(::Exception)
                 extended ? resp : resp.value
             }
