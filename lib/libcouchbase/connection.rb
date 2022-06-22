@@ -562,7 +562,6 @@ module Libcouchbase
             val
         end
 
-
         private
 
 
@@ -752,7 +751,7 @@ module Libcouchbase
             end
 
             # Return the single result instead of an array if single
-            is_single = resp[:rflags] & Ext::RESPFLAGS[:resp_f_sdsingle] > 0
+            is_single = (resp[:rflags] & Ext::RESPFLAGS[:resp_f_sdsingle]) > 0
             if is_single
                 values = values.first
             elsif values.empty? # multiple mutate arrays should return true (same as a single mutate)
@@ -855,7 +854,7 @@ module Libcouchbase
             view = @requests[row_data[:cookie].address]
 
             if row_data[:rc] == :success
-                value = JSON.parse(row_data[:row].read_string(row_data[:nrow]), DECODE_OPTIONS)
+                value = JSON.parse(row_text(row_data), DECODE_OPTIONS)
 
                 if (row_data[:rflags] & Ext::RESPFLAGS[:resp_f_final]) > 0
                     # We can assume this is JSON
@@ -867,10 +866,21 @@ module Libcouchbase
                 error_klass = Error.lookup(row_data[:rc])
                 if error_klass == Error::HttpError
                     http_resp = row_data[:htresp]
-                    view.error error_klass.new(body_text(http_resp))
+                    body_text = body_text(http_resp)
+                    body_text = row_text(row_data) if body_text.empty?
+                    view.error error_klass.new(body_text)
                 else
                     view.error error_klass.new
                 end
+            end
+        end
+
+        # Extracts the row content of a response
+        def row_text(row_data)
+            if row_data[:nrow] > 0
+                row_data[:row].read_string(row_data[:nrow])
+            else
+                ''
             end
         end
 
