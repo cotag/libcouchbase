@@ -405,7 +405,9 @@ module Libcouchbase
         #   res = c.set("foo", "bar")       #=> #<struct Libcouchbase::Response callback=:callback_set, key="foo", cas=1975457268957184, value="bar", metadata={:flags=>0}>
         #   c.delete("foo", cas: 123456)    #=> will raise Libcouchbase::Error::KeyExists
         #   c.delete("foo", cas: res.cas)   #=> true
-        def delete(key, async: false, quiet: true, **opts)
+        def delete(key, **opts)
+            async = opts.fetch(:async, false)
+            quiet = opts.fetch(:quiet, true)
             promise = @connection.remove(key, **opts).then { true }
             if quiet
                 promise = promise.catch { |error|
